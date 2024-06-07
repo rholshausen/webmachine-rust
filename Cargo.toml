@@ -1,11 +1,10 @@
 [package]
 name = "webmachine-rust"
-version = "0.3.1"
-authors = ["Ronald Holshausen <uglyog@gmail.com>"]
+version = "0.4.0"
+authors = ["Ronald Holshausen <ronald.holshausen@gmail.com>"]
 description = "Port of the Ruby Webmachine library to Rust"
-documentation = "http://www.pact.io/reference/rust/webmachine-rust-0.1.0/webmachine_rust/"
-homepage = "https://github.com/uglyog/webmachine-rust"
-repository = "https://github.com/uglyog/webmachine-rust"
+homepage = "https://github.com/rholshausen/webmachine-rust"
+repository = "https://github.com/rholshausen/webmachine-rust"
 readme = "README.md"
 keywords = ["webmachine"]
 license = "MIT"
@@ -15,9 +14,9 @@ edition = "2021"
 chrono = "0.4.26"
 futures = "0.3.28"
 hex = "0.4.3"
-http = "0.2.9"
-hyper = { version = "0.14.26", features = ["full"] }
-itertools = "0.10.5"
+http = "1.1.0"
+hyper = { version = "1.3.1", features = ["full"] }
+itertools = "0.13.0"
 lazy_static = "1.4.0"
 maplit = "1.0.2"
 serde = "1.0.163"
