@@ -1,5 +1,12 @@
 
 
+# 0.4.0 - Upgrade Hyper and Http crates to 1.0
+
+* 6ed86b0 - chore: Update readme (Ronald Holshausen, Fri Jun 7 12:49:51 2024 +1000)
+* d90b39c - chore: Convert to Hyper and Http 1.0 (Ronald Holshausen, Fri Jun 7 12:46:15 2024 +1000)
+* d1c0015 - chore: Update deps, setup GH build (Ronald Holshausen, Fri Jun 7 11:48:58 2024 +1000)
+* 8ed0beb - bump version to 0.3.1 (Ronald Holshausen, Wed Jun 14 10:33:28 2023 +1000)
+
 # 0.3.0 - update to Rust 2021 edition + switch to using the tracing crate
 
 * 0b9c91d - chore: switch to using the tracing crate (Ronald Holshausen, Wed Jun 14 10:19:49 2023 +1000)
