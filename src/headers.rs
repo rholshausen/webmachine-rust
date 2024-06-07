@@ -7,8 +7,8 @@ use std::str::Chars;
 
 use itertools::Itertools;
 
-const SEPERATORS: [char; 10] = ['(', ')', '<', '>', '@', ',', ';', '=', '{', '}'];
-const VALUE_SEPERATORS: [char; 9] = ['(', ')', '<', '>', '@', ',', ';', '{', '}'];
+const SEPARATORS: [char; 10] = ['(', ')', '<', '>', '@', ',', ';', '=', '{', '}'];
+const VALUE_SEPARATORS: [char; 9] = ['(', ')', '<', '>', '@', ',', ';', '{', '}'];
 
 fn batch(values: &[String]) -> Vec<(String, String)> {
   values.into_iter().batching(|it| {
@@ -55,7 +55,7 @@ fn header_value(chars: &mut Peekable<Chars>, seperators: &[char]) -> String {
 // header -> value [; parameters]
 fn parse_header(s: &str) -> Vec<String> {
   let mut chars = s.chars().peekable();
-  let header_value = header_value(&mut chars, &VALUE_SEPERATORS);
+  let header_value = header_value(&mut chars, &VALUE_SEPARATORS);
   let mut values = vec![header_value];
   if chars.peek().is_some() && chars.peek().unwrap() == &';' {
       chars.next();
@@ -75,7 +75,7 @@ fn parse_header_parameters(chars: &mut Peekable<Chars>, values: &mut Vec<String>
 
 // parameter -> attribute [= [value]]
 fn parse_header_parameter(chars: &mut Peekable<Chars>, values: &mut Vec<String>) {
-    values.push(header_value(chars, &SEPERATORS));
+    values.push(header_value(chars, &SEPARATORS));
     if chars.peek().is_some() && chars.peek().unwrap() == &'=' {
         chars.next();
         parse_header_parameter_value(chars, values);
@@ -325,7 +325,7 @@ mod tests {
         }));
         expect!(header.weak_etag()).to(be_none());
 
-        let weak_etag_value = HeaderValue::parse_string(weak_etag.clone());
+        let weak_etag_value = HeaderValue::parse_string(weak_etag);
         expect!(weak_etag_value.clone()).to(be_equal_to(HeaderValue {
             value: weak_etag.to_string(),
             params: hashmap!{},

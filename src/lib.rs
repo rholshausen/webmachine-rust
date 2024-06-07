@@ -38,28 +38,32 @@ This implementation has the following deficiencies:
 Follow the getting started documentation from the Hyper crate to setup a Hyper service for your server.
 You need to define a WebmachineDispatcher that maps resource paths to your webmachine resources (WebmachineResource).
 Each WebmachineResource defines all the callbacks (via Closures) and values required to implement a resource.
-The WebmachineDispatcher implementes the Hyper Service trait, so you can pass it to the `make_service_fn`.
 
 Note: This example uses the maplit crate to provide the `btreemap` macro and the log crate for the logging macros.
 
  ```no_run
- use hyper::server::Server;
  use webmachine_rust::*;
  use webmachine_rust::context::*;
  use webmachine_rust::headers::*;
  use serde_json::{Value, json};
  use std::io::Read;
  use std::net::SocketAddr;
- use hyper::service::make_service_fn;
  use std::convert::Infallible;
+ use std::sync::Arc;
  use maplit::btreemap;
  use tracing::error;
+ use hyper_util::rt::TokioIo;
+ use tokio::net::TcpListener;
+ use hyper::server::conn::http1;
+ use hyper::service::service_fn;
+ use hyper::{body, Request};
 
  # fn main() {}
- // setup the dispatcher, which maps paths to resources. The requirement of make_service_fn is
- // that it has a static lifetime
- fn dispatcher() -> WebmachineDispatcher<'static> {
-   WebmachineDispatcher {
+
+ async fn start_server() -> anyhow::Result<()> {
+   // setup the dispatcher, which maps paths to resources. We wrap it in an Arc so we can
+   // use it in the loop below.
+   let dispatcher = Arc::new(WebmachineDispatcher {
        routes: btreemap!{
           "/myresource" => WebmachineResource {
             // Methods allowed on this resource
@@ -79,47 +83,45 @@ Note: This example uses the maplit crate to provide the `btreemap` macro and the
             .. WebmachineResource::default()
           }
       }
-   }
- }
+   });
 
- async fn start_server() -> Result<(), String> {
-   // Create a Hyper server that delegates to the dispatcher
-   let addr = "0.0.0.0:8080".parse().unwrap();
-   let make_svc = make_service_fn(|_| async { Ok::<_, Infallible>(dispatcher()) });
-   match Server::try_bind(&addr) {
-     Ok(server) => {
-       // start the actual server
-       server.serve(make_svc).await;
-     },
-     Err(err) => {
-       error!("could not start server: {}", err);
-     }
-   };
+   // Create a Hyper server that delegates to the dispatcher. See https://hyper.rs/guides/1/server/hello-world/
+   let addr: SocketAddr = "0.0.0.0:8080".parse()?;
+   let listener = TcpListener::bind(addr).await?;
+   loop {
+        let dispatcher = dispatcher.clone();
+        let (stream, _) = listener.accept().await?;
+        let io = TokioIo::new(stream);
+        tokio::task::spawn(async move {
+            if let Err(err) = http1::Builder::new()
+                .serve_connection(io, service_fn(|req: Request<body::Incoming>| dispatcher.dispatch(req)))
+                .await
+            {
+                error!("Error serving connection: {:?}", err);
+            }
+        });
+   }
    Ok(())
  }
  ```
 
 ## Example implementations
 
-For an example of a project using this crate, have a look at the [Pact Mock Server](https://github.com/pact-foundation/pact-reference/tree/master/rust/v1/pact_mock_server_cli) from the Pact reference implementation.
+For an example of a project using this crate, have a look at the [Pact Mock Server](https://github.com/pact-foundation/pact-core-mock-server/tree/main/pact_mock_server_cli) from the Pact reference implementation.
 */
 
 #![warn(missing_docs)]
 
 use std::collections::{BTreeMap, HashMap};
-use std::future::Future;
 use std::ops::Deref;
-use std::pin::Pin;
 use std::sync::Arc;
 use std::sync::Mutex;
-use std::task::{Context, Poll};
 
+use bytes::Bytes;
 use chrono::{DateTime, FixedOffset, Utc};
-use futures::TryStreamExt;
-use http::{Request, Response};
-use http::request::Parts;
-use hyper::Body;
-use hyper::service::Service;
+use http::{HeaderMap, Request, Response};
+use http_body_util::{BodyExt, Full};
+use hyper::body::Incoming;
 use itertools::Itertools;
 use lazy_static::lazy_static;
 use maplit::hashmap;
@@ -882,8 +884,8 @@ fn parse_header_values(value: &str) -> Vec<HeaderValue> {
   }
 }
 
-fn headers_from_http_request(req: &Parts) -> HashMap<String, Vec<HeaderValue>> {
-  req.headers.iter()
+fn headers_from_http_request(headers: &HeaderMap<http::HeaderValue>) -> HashMap<String, Vec<HeaderValue>> {
+  headers.iter()
     .map(|(name, value)| (name.to_string(), parse_header_values(value.to_str().unwrap_or_default())))
     .collect()
 }
@@ -958,37 +960,35 @@ fn parse_query(query: &str) -> HashMap<String, Vec<String>> {
   }
 }
 
-async fn request_from_http_request(req: Request<hyper::Body>) -> WebmachineRequest {
-  let (parts, body) = req.into_parts();
-  let request_path = parts.uri.path().to_string();
+async fn request_from_http_request(req: Request<Incoming>) -> WebmachineRequest {
+  let request_path = req.uri().path().to_string();
+  let method = req.method().to_string();
+  let query = match req.uri().query() {
+    Some(query) => parse_query(query),
+    None => HashMap::new()
+  };
+  let headers = headers_from_http_request(req.headers());
 
-  let req_body = body.try_fold(Vec::new(), |mut data, chunk| async move {
-      data.extend_from_slice(&chunk);
-      Ok(data)
-    }).await;
-  let body = match req_body {
+  let body = match req.collect().await {
     Ok(body) => {
+      let body = body.to_bytes();
       if body.is_empty() {
         None
       } else {
         Some(body.clone())
       }
-    },
+    }
     Err(err) => {
       error!("Failed to read the request body: {}", err);
       None
     }
   };
 
-  let query = match parts.uri.query() {
-    Some(query) => parse_query(query),
-    None => HashMap::new()
-  };
   WebmachineRequest {
-    request_path: request_path.clone(),
+    request_path,
     base_path: "/".to_string(),
-    method: parts.method.as_str().into(),
-    headers: headers_from_http_request(&parts),
+    method,
+    headers,
     body,
     query
   }
@@ -1015,7 +1015,7 @@ fn finalise_response(context: &mut WebmachineContext, resource: &WebmachineResou
   let mut vary_header = if !context.response.has_header("Vary") {
     resource.variances
       .iter()
-      .map(|h| HeaderValue::parse_string(h.clone()))
+      .map(|h| HeaderValue::parse_string(h))
       .collect()
   } else {
     Vec::new()
@@ -1081,7 +1081,7 @@ fn finalise_response(context: &mut WebmachineContext, resource: &WebmachineResou
   debug!("Final response: {:?}", context.response);
 }
 
-fn generate_http_response(context: &WebmachineContext) -> http::Result<Response<hyper::Body>> {
+fn generate_http_response(context: &WebmachineContext) -> http::Result<Response<Full<Bytes>>> {
   let mut response = Response::builder().status(context.response.status);
 
   for (header, values) in context.response.headers.clone() {
@@ -1089,8 +1089,8 @@ fn generate_http_response(context: &WebmachineContext) -> http::Result<Response<
     response = response.header(&header, &header_values);
   }
   match context.response.body.clone() {
-    Some(body) => response.body(body.into()),
-    None => response.body(Body::empty())
+    Some(body) => response.body(Full::new(body.into())),
+    None => response.body(Full::new(Bytes::default()))
   }
 }
 
@@ -1104,13 +1104,13 @@ pub struct WebmachineDispatcher<'a> {
 impl <'a> WebmachineDispatcher<'a> {
   /// Main dispatch function for the Webmachine. This will look for a matching resource
   /// based on the request path. If one is not found, a 404 Not Found response is returned
-  pub async fn dispatch(self, req: Request<hyper::Body>) -> http::Result<Response<hyper::Body>> {
+  pub async fn dispatch(&self, req: Request<Incoming>) -> http::Result<Response<Full<Bytes>>> {
     let mut context = self.context_from_http_request(req).await;
     self.dispatch_to_resource(&mut context);
     generate_http_response(&context)
   }
 
-  async fn context_from_http_request(&self, req: Request<hyper::Body>) -> WebmachineContext {
+  async fn context_from_http_request(&self, req: Request<Incoming>) -> WebmachineContext {
     let request = request_from_http_request(req).await;
     WebmachineContext {
       request,
@@ -1151,20 +1151,6 @@ impl <'a> WebmachineDispatcher<'a> {
       },
       None => context.response.status = 404
     };
-  }
-}
-
-impl Service<Request<hyper::Body>> for WebmachineDispatcher<'static> {
-  type Response = Response<hyper::Body>;
-  type Error = http::Error;
-  type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>> + Send>>;
-
-  fn poll_ready(&mut self, _: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-    Poll::Ready(Ok(()))
-  }
-
-  fn call(&mut self, req: Request<hyper::Body>) -> Self::Future {
-    Box::pin(self.clone().dispatch(req))
   }
 }
 

@@ -3,9 +3,10 @@
 
 use std::collections::{BTreeMap, HashMap};
 
+use bytes::Bytes;
 use chrono::{DateTime, FixedOffset};
-use maplit::hashmap;
 use itertools::Itertools;
+use maplit::hashmap;
 
 use crate::headers::HeaderValue;
 
@@ -21,7 +22,7 @@ pub struct WebmachineRequest {
   /// Request headers
   pub headers: HashMap<String, Vec<HeaderValue>>,
   /// Request body
-  pub body: Option<Vec<u8>>,
+  pub body: Option<Bytes>,
   /// Query parameters
   pub query: HashMap<String, Vec<String>>
 }
