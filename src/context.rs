@@ -2,6 +2,7 @@
 //! executing in. Basically wraps the request and response.
 
 use std::collections::{BTreeMap, HashMap};
+use std::fmt::Display;
 
 use bytes::Bytes;
 use chrono::{DateTime, FixedOffset};
@@ -221,12 +222,79 @@ impl WebmachineResponse {
 /// Values that can be stored as metadata
 #[derive(Debug, Clone, PartialEq)]
 pub enum MetaDataValue {
+  /// No Value,
+  Empty,
   /// String Value
   String(String),
   /// Unsigned integer
   UInteger(u64),
   /// Signed integer
   Integer(i64)
+}
+
+impl Display for MetaDataValue {
+  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    match self {
+      MetaDataValue::String(s) => write!(f, "{}", s.as_str()),
+      MetaDataValue::UInteger(u) => write!(f, "{}", *u),
+      MetaDataValue::Integer(i) => write!(f, "{}", *i),
+      MetaDataValue::Empty => Ok(())
+    }
+  }
+}
+
+impl Default for MetaDataValue {
+  fn default() -> Self {
+    MetaDataValue::Empty
+  }
+}
+
+impl Default for &MetaDataValue {
+  fn default() -> Self {
+    &MetaDataValue::Empty
+  }
+}
+
+impl From<String> for MetaDataValue {
+  fn from(value: String) -> Self {
+    MetaDataValue::String(value)
+  }
+}
+
+impl From<&String> for MetaDataValue {
+  fn from(value: &String) -> Self {
+    MetaDataValue::String(value.clone())
+  }
+}
+
+impl From<&str> for MetaDataValue {
+  fn from(value: &str) -> Self {
+    MetaDataValue::String(value.to_string())
+  }
+}
+
+impl From<u16> for MetaDataValue {
+  fn from(value: u16) -> Self {
+    MetaDataValue::UInteger(value as u64)
+  }
+}
+
+impl From<i16> for MetaDataValue {
+  fn from(value: i16) -> Self {
+    MetaDataValue::Integer(value as i64)
+  }
+}
+
+impl From<u64> for MetaDataValue {
+  fn from(value: u64) -> Self {
+    MetaDataValue::UInteger(value)
+  }
+}
+
+impl From<i64> for MetaDataValue {
+  fn from(value: i64) -> Self {
+    MetaDataValue::Integer(value)
+  }
 }
 
 /// Main context struct that holds the request and response.
