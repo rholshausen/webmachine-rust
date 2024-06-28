@@ -45,6 +45,7 @@ Note: This example uses the maplit crate to provide the `btreemap` macro and the
  use webmachine_rust::*;
  use webmachine_rust::context::*;
  use webmachine_rust::headers::*;
+ use bytes::Bytes;
  use serde_json::{Value, json};
  use std::io::Read;
  use std::net::SocketAddr;
@@ -67,18 +68,18 @@ Note: This example uses the maplit crate to provide the `btreemap` macro and the
        routes: btreemap!{
           "/myresource" => WebmachineResource {
             // Methods allowed on this resource
-            allowed_methods: vec!["OPTIONS", "GET", "HEAD", "POST"],
+            allowed_methods: owned_vec(&["OPTIONS", "GET", "HEAD", "POST"]),
             // if the resource exists callback
-            resource_exists: callback(&|_, _| true),
+            resource_exists: callback(|_, _| true),
             // callback to render the response for the resource
-            render_response: callback(&|_, _| {
+            render_response: callback(|_, _| {
                 let json_response = json!({
                    "data": [1, 2, 3, 4]
                 });
-                Some(json_response.to_string())
+                Some(Bytes::from(json_response.to_string()))
             }),
             // callback to process the post for the resource
-            process_post: callback(&|_, _|  /* Handle the post here */ Ok(true) ),
+            process_post: callback(|_, _|  /* Handle the post here */ Ok(true) ),
             // default everything else
             .. WebmachineResource::default()
           }
@@ -113,9 +114,6 @@ For an example of a project using this crate, have a look at the [Pact Mock Serv
 #![warn(missing_docs)]
 
 use std::collections::{BTreeMap, HashMap};
-use std::ops::Deref;
-use std::sync::Arc;
-use std::sync::Mutex;
 
 use bytes::Bytes;
 use chrono::{DateTime, FixedOffset, Utc};
@@ -135,119 +133,123 @@ pub mod context;
 pub mod content_negotiation;
 
 /// Type of a Webmachine resource callback
-pub type WebmachineCallback<'a, T> = Arc<Mutex<Box<dyn Fn(&mut WebmachineContext, &WebmachineResource) -> T + Send + Sync + 'a>>>;
+pub type WebmachineCallback<T> = Box<dyn Fn(&mut WebmachineContext, &WebmachineResource) -> T + Send + Sync>;
 
 /// Wrap a callback in a structure that is safe to call between threads
-pub fn callback<T, RT>(cb: &T) -> WebmachineCallback<RT>
-  where T: Fn(&mut WebmachineContext, &WebmachineResource) -> RT + Send + Sync {
-  Arc::new(Mutex::new(Box::new(cb)))
+pub fn callback<T, RT>(cb: T) -> WebmachineCallback<RT>
+  where T: Fn(&mut WebmachineContext, &WebmachineResource) -> RT + Send + Sync + 'static {
+  Box::new(cb)
+}
+
+/// Convenience function to create a vector of string structs from a slice of strings
+pub fn owned_vec(strings: &[&str]) -> Vec<String> {
+  strings.iter().map(|s| s.to_string()).collect()
 }
 
 /// Struct to represent a resource in webmachine
-#[derive(Clone)]
-pub struct WebmachineResource<'a> {
+pub struct WebmachineResource {
   /// This is called just before the final response is constructed and sent. It allows the resource
   /// an opportunity to modify the response after the webmachine has executed.
-  pub finalise_response: Option<WebmachineCallback<'a, ()>>,
+  pub finalise_response: Option<WebmachineCallback<()>>,
   /// This is invoked to render the response for the resource
-  pub render_response: WebmachineCallback<'a, Option<String>>,
+  pub render_response: WebmachineCallback<Option<Bytes>>,
   /// Is the resource available? Returning false will result in a '503 Service Not Available'
   /// response. Defaults to true. If the resource is only temporarily not available,
   /// add a 'Retry-After' response header.
-  pub available: WebmachineCallback<'a, bool>,
+  pub available: WebmachineCallback<bool>,
   /// HTTP methods that are known to the resource. Default includes all standard HTTP methods.
   /// One could override this to allow additional methods
-  pub known_methods: Vec<&'a str>,
+  pub known_methods: Vec<String>,
   /// If the URI is too long to be processed, this should return true, which will result in a
   /// '414 Request URI Too Long' response. Defaults to false.
-  pub uri_too_long: WebmachineCallback<'a, bool>,
+  pub uri_too_long: WebmachineCallback<bool>,
   /// HTTP methods that are allowed on this resource. Defaults to GET','HEAD and 'OPTIONS'.
-  pub allowed_methods: Vec<&'a str>,
+  pub allowed_methods: Vec<String>,
   /// If the request is malformed, this should return true, which will result in a
   /// '400 Malformed Request' response. Defaults to false.
-  pub malformed_request: WebmachineCallback<'a, bool>,
+  pub malformed_request: WebmachineCallback<bool>,
   /// Is the client or request not authorized? Returning a Some<String>
   /// will result in a '401 Unauthorized' response.  Defaults to None. If a Some(String) is
   /// returned, the string will be used as the value in the WWW-Authenticate header.
-  pub not_authorized: WebmachineCallback<'a, Option<String>>,
+  pub not_authorized: WebmachineCallback<Option<String>>,
   /// Is the request or client forbidden? Returning true will result in a '403 Forbidden' response.
   /// Defaults to false.
-  pub forbidden: WebmachineCallback<'a, bool>,
+  pub forbidden: WebmachineCallback<bool>,
   /// If the request includes any invalid Content-* headers, this should return true, which will
   /// result in a '501 Not Implemented' response. Defaults to false.
-  pub unsupported_content_headers: WebmachineCallback<'a, bool>,
+  pub unsupported_content_headers: WebmachineCallback<bool>,
   /// The list of acceptable content types. Defaults to 'application/json'. If the content type
   /// of the request is not in this list, a '415 Unsupported Media Type' response is returned.
-  pub acceptable_content_types: Vec<&'a str>,
+  pub acceptable_content_types: Vec<String>,
   /// If the entity length on PUT or POST is invalid, this should return false, which will result
   /// in a '413 Request Entity Too Large' response. Defaults to true.
-  pub valid_entity_length: WebmachineCallback<'a, bool>,
+  pub valid_entity_length: WebmachineCallback<bool>,
   /// This is called just before the final response is constructed and sent. This allows the
   /// response to be modified. The default implementation adds CORS headers to the response
-  pub finish_request: WebmachineCallback<'a, ()>,
+  pub finish_request: WebmachineCallback<()>,
   /// If the OPTIONS method is supported and is used, this returns a HashMap of headers that
   /// should appear in the response. Defaults to CORS headers.
-  pub options: WebmachineCallback<'a, Option<HashMap<String, Vec<String>>>>,
+  pub options: WebmachineCallback<Option<HashMap<String, Vec<String>>>>,
   /// The list of content types that this resource produces. Defaults to 'application/json'. If
   /// more than one is provided, and the client does not supply an Accept header, the first one
   /// will be selected.
-  pub produces: Vec<&'a str>,
+  pub produces: Vec<String>,
   /// The list of content languages that this resource provides. Defaults to an empty list,
   /// which represents all languages. If more than one is provided, and the client does not
   /// supply an Accept-Language header, the first one will be selected.
-  pub languages_provided: Vec<&'a str>,
+  pub languages_provided: Vec<String>,
   /// The list of charsets that this resource provides. Defaults to an empty list,
   /// which represents all charsets with ISO-8859-1 as the default. If more than one is provided,
   /// and the client does not supply an Accept-Charset header, the first one will be selected.
-  pub charsets_provided: Vec<&'a str>,
+  pub charsets_provided: Vec<String>,
   /// The list of encodings your resource wants to provide. The encoding will be applied to the
   /// response body automatically by Webmachine. Default includes only the 'identity' encoding.
-  pub encodings_provided: Vec<&'a str>,
+  pub encodings_provided: Vec<String>,
   /// The list of header names that should be included in the response's Vary header. The standard
   /// content negotiation headers (Accept, Accept-Encoding, Accept-Charset, Accept-Language) do
   /// not need to be specified here as Webmachine will add the correct elements of those
   /// automatically depending on resource behavior. Default is an empty list.
-  pub variances: Vec<&'a str>,
+  pub variances: Vec<String>,
   /// Does the resource exist? Returning a false value will result in a '404 Not Found' response
   /// unless it is a PUT or POST. Defaults to true.
-  pub resource_exists: WebmachineCallback<'a, bool>,
+  pub resource_exists: WebmachineCallback<bool>,
   /// If this resource is known to have existed previously, this should return true. Default is false.
-  pub previously_existed: WebmachineCallback<'a, bool>,
+  pub previously_existed: WebmachineCallback<bool>,
   /// If this resource has moved to a new location permanently, this should return the new
   /// location as a String. Default is to return None
-  pub moved_permanently: WebmachineCallback<'a, Option<String>>,
+  pub moved_permanently: WebmachineCallback<Option<String>>,
   /// If this resource has moved to a new location temporarily, this should return the new
   /// location as a String. Default is to return None
-  pub moved_temporarily: WebmachineCallback<'a, Option<String>>,
+  pub moved_temporarily: WebmachineCallback<Option<String>>,
   /// If this returns true, the client will receive a '409 Conflict' response. This is only
   /// called for PUT requests. Default is false.
-  pub is_conflict: WebmachineCallback<'a, bool>,
+  pub is_conflict: WebmachineCallback<bool>,
   /// Return true if the resource accepts POST requests to nonexistent resources. Defaults to false.
-  pub allow_missing_post: WebmachineCallback<'a, bool>,
+  pub allow_missing_post: WebmachineCallback<bool>,
   /// If this returns a value, it will be used as the value of the ETag header and for
   /// comparison in conditional requests. Default is None.
-  pub generate_etag: WebmachineCallback<'a, Option<String>>,
+  pub generate_etag: WebmachineCallback<Option<String>>,
   /// Returns the last modified date and time of the resource which will be added as the
   /// Last-Modified header in the response and used in negotiating conditional requests.
   /// Default is None
-  pub last_modified: WebmachineCallback<'a, Option<DateTime<FixedOffset>>>,
+  pub last_modified: WebmachineCallback<Option<DateTime<FixedOffset>>>,
   /// Called when a DELETE request should be enacted. Return `Ok(true)` if the deletion succeeded,
   /// and `Ok(false)` if the deletion was accepted but cannot yet be guaranteed to have finished.
   /// If the delete fails for any reason, return an Err with the status code you wish returned
   /// (a 500 status makes sense).
   /// Defaults to `Ok(true)`.
-  pub delete_resource: WebmachineCallback<'a, Result<bool, u16>>,
+  pub delete_resource: WebmachineCallback<Result<bool, u16>>,
   /// If POST requests should be treated as a request to put content into a (potentially new)
   /// resource as opposed to a generic submission for processing, then this should return true.
   /// If it does return true, then `create_path` will be called and the rest of the request will
   /// be treated much like a PUT to the path returned by that call. Default is false.
-  pub post_is_create: WebmachineCallback<'a, bool>,
+  pub post_is_create: WebmachineCallback<bool>,
   /// If `post_is_create` returns false, then this will be called to process any POST request.
   /// If it succeeds, return `Ok(true)`, `Ok(false)` otherwise. If it fails for any reason,
   /// return an Err with the status code you wish returned (e.g., a 500 status makes sense).
   /// Default is false. If you want the result of processing the POST to be a redirect, set
   /// `context.redirect` to true.
-  pub process_post: WebmachineCallback<'a, Result<bool, u16>>,
+  pub process_post: WebmachineCallback<Result<bool, u16>>,
   /// This will be called on a POST request if `post_is_create` returns true. It should create
   /// the new resource and return the path as a valid URI part following the dispatcher prefix.
   /// That path will replace the previous one in the return value of `WebmachineRequest.request_path`
@@ -256,17 +258,17 @@ pub struct WebmachineResource<'a> {
   /// return an Err with the status code you wish returned (e.g., a 500 status makes sense).
   /// Default will return an `Ok(WebmachineRequest.request_path)`. If you want the result of
   /// processing the POST to be a redirect, set `context.redirect` to true.
-  pub create_path: WebmachineCallback<'a, Result<String, u16>>,
+  pub create_path: WebmachineCallback<Result<String, u16>>,
   /// This will be called to process any PUT request. If it succeeds, return `Ok(true)`,
   /// `Ok(false)` otherwise. If it fails for any reason, return an Err with the status code
   /// you wish returned (e.g., a 500 status makes sense). Default is `Ok(true)`
-  pub process_put: WebmachineCallback<'a, Result<bool, u16>>,
+  pub process_put: WebmachineCallback<Result<bool, u16>>,
   /// If this returns true, then it is assumed that multiple representations of the response are
   /// possible and a single one cannot be automatically chosen, so a 300 Multiple Choices will
   /// be sent instead of a 200. Default is false.
-  pub multiple_choices: WebmachineCallback<'a, bool>,
+  pub multiple_choices: WebmachineCallback<bool>,
   /// If the resource expires, this should return the date/time it expires. Default is None.
-  pub expires: WebmachineCallback<'a, Option<DateTime<FixedOffset>>>
+  pub expires: WebmachineCallback<Option<DateTime<FixedOffset>>>
 }
 
 fn true_fn(_: &mut WebmachineContext, _: &WebmachineResource) -> bool {
@@ -281,43 +283,43 @@ fn none_fn<T>(_: &mut WebmachineContext, _: &WebmachineResource) -> Option<T> {
   None
 }
 
-impl <'a> Default for WebmachineResource<'a> {
-  fn default() -> WebmachineResource<'a> {
+impl Default for WebmachineResource {
+  fn default() -> WebmachineResource {
     WebmachineResource {
       finalise_response: None,
-      available: callback(&true_fn),
-      known_methods: vec!["OPTIONS", "GET", "POST", "PUT", "DELETE", "HEAD", "TRACE", "CONNECT", "PATCH"],
-      uri_too_long: callback(&false_fn),
-      allowed_methods: vec!["OPTIONS", "GET", "HEAD"],
-      malformed_request: callback(&false_fn),
-      not_authorized: callback(&none_fn),
-      forbidden: callback(&false_fn),
-      unsupported_content_headers: callback(&false_fn),
-      acceptable_content_types: vec!["application/json"],
-      valid_entity_length: callback(&true_fn),
-      finish_request: callback(&|context, resource| context.response.add_cors_headers(&resource.allowed_methods)),
-      options: callback(&|_, resource| Some(WebmachineResponse::cors_headers(&resource.allowed_methods))),
-      produces: vec!["application/json"],
+      available: callback(true_fn),
+      known_methods: owned_vec(&["OPTIONS", "GET", "POST", "PUT", "DELETE", "HEAD", "TRACE", "CONNECT", "PATCH"]),
+      uri_too_long: callback(false_fn),
+      allowed_methods: owned_vec(&["OPTIONS", "GET", "HEAD"]),
+      malformed_request: callback(false_fn),
+      not_authorized: callback(none_fn),
+      forbidden: callback(false_fn),
+      unsupported_content_headers: callback(false_fn),
+      acceptable_content_types: owned_vec(&["application/json"]),
+      valid_entity_length: callback(true_fn),
+      finish_request: callback(|context, resource| context.response.add_cors_headers(&resource.allowed_methods)),
+      options: callback(|_, resource| Some(WebmachineResponse::cors_headers(&resource.allowed_methods))),
+      produces: vec!["application/json".to_string()],
       languages_provided: Vec::new(),
       charsets_provided: Vec::new(),
-      encodings_provided: vec!["identity"],
+      encodings_provided: vec!["identity".to_string()],
       variances: Vec::new(),
-      resource_exists: callback(&true_fn),
-      previously_existed: callback(&false_fn),
-      moved_permanently: callback(&none_fn),
-      moved_temporarily: callback(&none_fn),
-      is_conflict: callback(&false_fn),
-      allow_missing_post: callback(&false_fn),
-      generate_etag: callback(&none_fn),
-      last_modified: callback(&none_fn),
-      delete_resource: callback(&|_, _| Ok(true)),
-      post_is_create: callback(&false_fn),
-      process_post: callback(&|_, _| Ok(false)),
-      process_put: callback(&|_, _| Ok(true)),
-      multiple_choices: callback(&false_fn),
-      create_path: callback(&|context, _| Ok(context.request.request_path.clone())),
-      expires: callback(&none_fn),
-      render_response: callback(&none_fn)
+      resource_exists: callback(true_fn),
+      previously_existed: callback(false_fn),
+      moved_permanently: callback(none_fn),
+      moved_temporarily: callback(none_fn),
+      is_conflict: callback(false_fn),
+      allow_missing_post: callback(false_fn),
+      generate_etag: callback(none_fn),
+      last_modified: callback(none_fn),
+      delete_resource: callback(|_, _| Ok(true)),
+      post_is_create: callback(false_fn),
+      process_post: callback(|_, _| Ok(false)),
+      process_put: callback(|_, _| Ok(true)),
+      multiple_choices: callback(false_fn),
+      create_path: callback(|context, _| Ok(context.request.request_path.clone())),
+      expires: callback(none_fn),
+      render_response: callback(none_fn)
     }
   }
 }
@@ -503,8 +505,7 @@ fn resource_etag_matches_header_values(
   header: &str
 ) -> bool {
   let header_values = context.request.find_header(header);
-  let callback = resource.generate_etag.lock().unwrap();
-  match callback.deref()(context, resource) {
+  match (resource.generate_etag)(context, resource) {
     Some(etag) => {
       header_values.iter().find(|val| {
         if val.value.starts_with("W/") {
@@ -561,23 +562,19 @@ fn execute_decision(
       }
     },
     Decision::B11UriTooLong => {
-      let callback = resource.uri_too_long.lock().unwrap();
-      DecisionResult::wrap(callback.deref()(context, resource), "URI too long")
+      DecisionResult::wrap((resource.uri_too_long)(context, resource), "URI too long")
     },
     Decision::B12KnownMethod => DecisionResult::wrap(resource.known_methods
       .iter().find(|m| m.to_uppercase() == context.request.method.to_uppercase()).is_some(),
       "known method"),
     Decision::B13Available => {
-      let callback = resource.available.lock().unwrap();
-      DecisionResult::wrap(callback.deref()(context, resource), "available")
+      DecisionResult::wrap((resource.available)(context, resource), "available")
     },
     Decision::B9MalformedRequest => {
-      let callback = resource.malformed_request.lock().unwrap();
-      DecisionResult::wrap(callback.deref()(context, resource), "malformed request")
+      DecisionResult::wrap((resource.malformed_request)(context, resource), "malformed request")
     },
     Decision::B8Authorized => {
-      let callback = resource.not_authorized.lock().unwrap();
-      match callback.deref()(context, resource) {
+      match (resource.not_authorized)(context, resource) {
         Some(realm) => {
           context.response.add_header("WWW-Authenticate", vec![HeaderValue::parse_string(realm.as_str())]);
           DecisionResult::False("is not authorized".to_string())
@@ -586,12 +583,10 @@ fn execute_decision(
       }
     },
     Decision::B7Forbidden => {
-      let callback = resource.forbidden.lock().unwrap();
-      DecisionResult::wrap(callback.deref()(context, resource), "forbidden")
+      DecisionResult::wrap((resource.forbidden)(context, resource), "forbidden")
     },
     Decision::B6UnsupportedContentHeader => {
-      let callback = resource.unsupported_content_headers.lock().unwrap();
-      DecisionResult::wrap(callback.deref()(context, resource), "unsupported content headers")
+      DecisionResult::wrap((resource.unsupported_content_headers)(context, resource), "unsupported content headers")
     },
     Decision::B5UnknownContentType => {
       DecisionResult::wrap(context.request.is_put_or_post() && resource.acceptable_content_types
@@ -599,8 +594,7 @@ fn execute_decision(
         .is_none(), "acceptable content types")
     },
     Decision::B4RequestEntityTooLarge => {
-      let callback = resource.valid_entity_length.lock().unwrap();
-      DecisionResult::wrap(context.request.is_put_or_post() && !callback.deref()(context, resource),
+      DecisionResult::wrap(context.request.is_put_or_post() && !(resource.valid_entity_length)(context, resource),
         "valid entity length")
     },
     Decision::B3Options => DecisionResult::wrap(context.request.is_options(), "options"),
@@ -648,8 +642,7 @@ fn execute_decision(
       None => DecisionResult::False("acceptable encoding is not available".to_string())
     },
     Decision::G7ResourceExists => {
-      let callback = resource.resource_exists.lock().unwrap();
-      DecisionResult::wrap(callback.deref()(context, resource), "resource exists")
+      DecisionResult::wrap((resource.resource_exists)(context, resource), "resource exists")
     },
     Decision::G8IfMatchExists => DecisionResult::wrap(context.request.has_header("If-Match"),
                                                       "match exists"),
@@ -664,8 +657,7 @@ fn execute_decision(
     Decision::H12LastModifiedGreaterThanUMS => {
       match context.if_unmodified_since {
         Some(unmodified_since) => {
-          let callback = resource.last_modified.lock().unwrap();
-          match callback.deref()(context, resource) {
+          match (resource.last_modified)(context, resource) {
             Some(datetime) => DecisionResult::wrap(datetime > unmodified_since,
                                                    "resource last modified date is greater than unmodified since"),
             None => DecisionResult::False("resource has no last modified date".to_string())
@@ -687,14 +679,12 @@ fn execute_decision(
     Decision::J18GetHead => DecisionResult::wrap(context.request.is_get_or_head(),
                                                  "is GET or HEAD request"),
     Decision::K7ResourcePreviouslyExisted => {
-      let callback = resource.previously_existed.lock().unwrap();
-      DecisionResult::wrap(callback.deref()(context, resource), "resource previously existed")
+      DecisionResult::wrap((resource.previously_existed)(context, resource), "resource previously existed")
     },
     Decision::K13ETagInIfNoneMatch => DecisionResult::wrap(resource_etag_matches_header_values(resource, context, "If-None-Match"),
                                                            "ETag in if none match"),
     Decision::L5HasMovedTemporarily => {
-      let callback = resource.moved_temporarily.lock().unwrap();
-      match callback.deref()(context, resource) {
+      match (resource.moved_temporarily)(context, resource) {
         Some(location) => {
           context.response.add_header("Location", vec![HeaderValue::basic(&location)]);
           DecisionResult::True("resource has moved temporarily".to_string())
@@ -717,8 +707,7 @@ fn execute_decision(
     Decision::L17IfLastModifiedGreaterThanMS => {
       match context.if_modified_since {
         Some(unmodified_since) => {
-          let callback = resource.last_modified.lock().unwrap();
-          match callback.deref()(context, resource) {
+          match (resource.last_modified)(context, resource) {
             Some(datetime) => DecisionResult::wrap(datetime > unmodified_since,
                                                    "last modified greater than modified since"),
             None => DecisionResult::False("resource has no last modified date".to_string())
@@ -728,8 +717,7 @@ fn execute_decision(
       }
     },
     Decision::I4HasMovedPermanently | &Decision::K5HasMovedPermanently => {
-      let callback = resource.moved_permanently.lock().unwrap();
-      match callback.deref()(context, resource) {
+      match (resource.moved_permanently)(context, resource) {
         Some(location) => {
           context.response.add_header("Location", vec![HeaderValue::basic(&location)]);
           DecisionResult::True("resource has moved permanently".to_string())
@@ -738,8 +726,7 @@ fn execute_decision(
       }
     },
     Decision::M7PostToMissingResource | &Decision::N5PostToMissingResource => {
-      let callback = resource.allow_missing_post.lock().unwrap();
-      if callback.deref()(context, resource) {
+      if (resource.allow_missing_post)(context, resource) {
         context.new_resource = true;
         DecisionResult::True("resource allows POST to missing resource".to_string())
       } else {
@@ -749,17 +736,14 @@ fn execute_decision(
     Decision::M16Delete => DecisionResult::wrap(context.request.is_delete(),
                                                 "a DELETE request"),
     Decision::M20DeleteEnacted => {
-      let callback = resource.delete_resource.lock().unwrap();
-      match callback.deref()(context, resource) {
+      match (resource.delete_resource)(context, resource) {
         Ok(result) => DecisionResult::wrap(result, "resource DELETE succeeded"),
         Err(status) => DecisionResult::StatusCode(status)
       }
     },
     Decision::N11Redirect => {
-      let callback = resource.post_is_create.lock().unwrap();
-      if callback.deref()(context, resource) {
-        let callback = resource.create_path.lock().unwrap();
-        match callback.deref()(context, resource) {
+      if (resource.post_is_create)(context, resource) {
+        match (resource.create_path)(context, resource) {
           Ok(path) => {
             let base_path = sanitise_path(&context.request.base_path);
             let new_path = join_paths(&base_path, &sanitise_path(&path));
@@ -770,21 +754,18 @@ fn execute_decision(
           Err(status) => DecisionResult::StatusCode(status)
         }
       } else {
-        let callback = resource.process_post.lock().unwrap();
-        match callback.deref()(context, resource) {
+        match (resource.process_post)(context, resource) {
           Ok(_) => DecisionResult::wrap(context.redirect, "processing POST succeeded"),
           Err(status) => DecisionResult::StatusCode(status)
         }
       }
     },
     Decision::P3Conflict | &Decision::O14Conflict => {
-      let callback = resource.is_conflict.lock().unwrap();
-      DecisionResult::wrap(callback.deref()(context, resource), "resource conflict")
+      DecisionResult::wrap((resource.is_conflict)(context, resource), "resource conflict")
     },
     Decision::P11NewResource => {
       if context.request.is_put() {
-        let callback = resource.process_put.lock().unwrap();
-        match callback.deref()(context, resource) {
+        match (resource.process_put)(context, resource) {
           Ok(_) => DecisionResult::wrap(context.new_resource, "process PUT succeeded"),
           Err(status) => DecisionResult::StatusCode(status)
         }
@@ -794,8 +775,7 @@ fn execute_decision(
     },
     Decision::O16Put => DecisionResult::wrap(context.request.is_put(), "a PUT request"),
     Decision::O18MultipleRepresentations => {
-      let callback = resource.multiple_choices.lock().unwrap();
-      DecisionResult::wrap(callback.deref()(context, resource), "multiple choices exist")
+      DecisionResult::wrap((resource.multiple_choices)(context, resource), "multiple choices exist")
     },
     Decision::O20ResponseHasBody => DecisionResult::wrap(context.response.has_body(), "response has a body"),
     _ => DecisionResult::False("default decision is false".to_string())
@@ -814,11 +794,11 @@ fn execute_state_machine(context: &mut WebmachineContext, resource: &WebmachineR
     trace!("state is {:?}", state);
     state = match TRANSITION_MAP.get(&state) {
       Some(transition) => match transition {
-        &Transition::To(ref decision) => {
+        Transition::To(decision) => {
           trace!("Transitioning to {:?}", decision);
           decision.clone()
         },
-        &Transition::Branch(ref decision_true, ref decision_false) => {
+        Transition::Branch(decision_true, decision_false) => {
           match execute_decision(&state, context, resource) {
             DecisionResult::True(reason) => {
               trace!("Transitioning from {:?} to {:?} as decision is true -> {}", state, decision_true, reason);
@@ -851,8 +831,7 @@ fn execute_state_machine(context: &mut WebmachineContext, resource: &WebmachineR
     Decision::End(status) => context.response.status = status,
     Decision::A3Options => {
       context.response.status = 204;
-      let callback = resource.options.lock().unwrap();
-      match callback.deref()(context, resource) {
+      match (resource.options)(context, resource) {
         Some(headers) => context.response.add_headers(headers),
         None => ()
       }
@@ -1040,22 +1019,19 @@ fn finalise_response(context: &mut WebmachineContext, resource: &WebmachineResou
 
   if context.request.is_get_or_head() {
     {
-      let callback = resource.generate_etag.lock().unwrap();
-      match callback.deref()(context, resource) {
+      match (resource.generate_etag)(context, resource) {
         Some(etag) => context.response.add_header("ETag", vec![HeaderValue::basic(&etag).quote()]),
         None => ()
       }
     }
     {
-      let callback = resource.expires.lock().unwrap();
-      match callback.deref()(context, resource) {
+      match (resource.expires)(context, resource) {
         Some(datetime) => context.response.add_header("Expires", vec![HeaderValue::basic(datetime.to_rfc2822()).quote()]),
         None => ()
       }
     }
     {
-      let callback = resource.last_modified.lock().unwrap();
-      match callback.deref()(context, resource) {
+      match (resource.last_modified)(context, resource) {
         Some(datetime) => context.response.add_header("Last-Modified", vec![HeaderValue::basic(datetime.to_rfc2822()).quote()]),
         None => ()
       }
@@ -1063,17 +1039,15 @@ fn finalise_response(context: &mut WebmachineContext, resource: &WebmachineResou
   }
 
   if context.response.body.is_none() && context.response.status == 200 && context.request.is_get() {
-    let callback = resource.render_response.lock().unwrap();
-    match callback.deref()(context, resource) {
-      Some(body) => context.response.body = Some(body.into_bytes()),
+    match (resource.render_response)(context, resource) {
+      Some(body) => context.response.body = Some(body),
       None => ()
     }
   }
 
   match &resource.finalise_response {
     Some(callback) => {
-      let callback = callback.lock().unwrap();
-      callback.deref()(context, resource);
+      callback(context, resource);
     },
     None => ()
   }
@@ -1095,13 +1069,12 @@ fn generate_http_response(context: &WebmachineContext) -> http::Result<Response<
 }
 
 /// The main hyper dispatcher
-#[derive(Clone)]
-pub struct WebmachineDispatcher<'a> {
+pub struct WebmachineDispatcher {
   /// Map of routes to webmachine resources
-  pub routes: BTreeMap<&'a str, WebmachineResource<'a>>
+  pub routes: BTreeMap<&'static str, WebmachineResource>
 }
 
-impl <'a> WebmachineDispatcher<'a> {
+impl WebmachineDispatcher {
   /// Main dispatch function for the Webmachine. This will look for a matching resource
   /// based on the request path. If one is not found, a 404 Not Found response is returned
   pub async fn dispatch(&self, req: Request<Incoming>) -> http::Result<Response<Full<Bytes>>> {
@@ -1128,7 +1101,7 @@ impl <'a> WebmachineDispatcher<'a> {
       .collect()
   }
 
-  fn lookup_resource(&self, path: &str) -> Option<&WebmachineResource<'a>> {
+  fn lookup_resource(&self, path: &str) -> Option<&WebmachineResource> {
     self.routes.get(path)
   }
 

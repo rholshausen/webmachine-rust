@@ -124,7 +124,7 @@ pub fn matching_content_type(resource: &WebmachineResource, request: &Webmachine
       .cartesian_product(acceptable_media_types.iter())
       .map(|(produced, acceptable)| {
         let acceptable_media_type = acceptable.as_media_type();
-        let produced_media_type =  MediaType::parse_string(produced);
+        let produced_media_type =  MediaType::parse_string(produced.as_str());
         (produced_media_type.clone(), acceptable_media_type.clone(), produced_media_type.matches(&acceptable_media_type))
       })
       .sorted_by(|a, b| Ord::cmp(&a.2, &b.2))

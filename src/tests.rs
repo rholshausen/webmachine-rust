@@ -69,7 +69,7 @@ fn dispatcher_returns_404_if_there_is_no_matching_resource() {
 fn execute_state_machine_returns_503_if_resource_indicates_not_available() {
   let mut context = WebmachineContext::default();
   let resource = WebmachineResource {
-    available: callback(&|_, _| { false }),
+    available: callback(|_, _| { false }),
     ..WebmachineResource::default()
   };
   execute_state_machine(&mut context, &resource);
@@ -135,7 +135,7 @@ fn execute_state_machine_returns_501_if_method_is_not_in_known_list() {
 fn execute_state_machine_returns_414_if_uri_is_too_long() {
   let mut context = WebmachineContext::default();
   let resource = WebmachineResource {
-    uri_too_long: callback(&|_, _| true),
+    uri_too_long: callback(|_, _| true),
     ..WebmachineResource::default()
   };
   execute_state_machine(&mut context, &resource);
@@ -165,7 +165,7 @@ fn execute_state_machine_returns_405_if_method_is_not_allowed() {
 fn execute_state_machine_returns_400_if_malformed_request() {
   let mut context = WebmachineContext::default();
   let resource = WebmachineResource {
-    malformed_request: callback(&|_, _| true),
+    malformed_request: callback(|_, _| true),
     ..WebmachineResource::default()
   };
   execute_state_machine(&mut context, &resource);
@@ -176,7 +176,7 @@ fn execute_state_machine_returns_400_if_malformed_request() {
 fn execute_state_machine_returns_401_if_not_authorized() {
   let mut context = WebmachineContext::default();
   let resource = WebmachineResource {
-    not_authorized: callback(&|_, _| Some("Basic realm=\"User Visible Realm\"".to_string())),
+    not_authorized: callback(|_, _| Some("Basic realm=\"User Visible Realm\"".to_string())),
     ..WebmachineResource::default()
   };
   execute_state_machine(&mut context, &resource);
@@ -190,7 +190,7 @@ fn execute_state_machine_returns_401_if_not_authorized() {
 fn execute_state_machine_returns_403_if_forbidden() {
   let mut context = WebmachineContext::default();
   let resource = WebmachineResource {
-    forbidden: callback(&|_, _| true),
+    forbidden: callback(|_, _| true),
     ..WebmachineResource::default()
   };
   execute_state_machine(&mut context, &resource);
@@ -201,7 +201,7 @@ fn execute_state_machine_returns_403_if_forbidden() {
 fn execute_state_machine_returns_501_if_there_is_an_unsupported_content_header() {
   let mut context = WebmachineContext::default();
   let resource = WebmachineResource {
-    unsupported_content_headers: callback(&|_, _| true),
+    unsupported_content_headers: callback(|_, _| true),
     ..WebmachineResource::default()
   };
   execute_state_machine(&mut context, &resource);
@@ -221,8 +221,8 @@ fn execute_state_machine_returns_415_if_the_content_type_is_unknown() {
     ..WebmachineContext::default()
   };
   let resource = WebmachineResource {
-    acceptable_content_types: vec!["application/json"],
-    allowed_methods: vec!["POST"],
+    acceptable_content_types: owned_vec(&["application/json"]),
+    allowed_methods: owned_vec(&["POST"]),
     ..WebmachineResource::default()
   };
   execute_state_machine(&mut context, &resource);
@@ -272,8 +272,8 @@ fn execute_state_machine_returns_413_if_the_request_entity_is_too_large() {
     ..WebmachineContext::default()
   };
   let resource = WebmachineResource {
-    valid_entity_length: callback(&|_, _| false),
-    allowed_methods: vec!["POST"],
+    valid_entity_length: callback(|_, _| false),
+    allowed_methods: owned_vec(&["POST"]),
     ..WebmachineResource::default()
   };
   execute_state_machine(&mut context, &resource);
@@ -289,7 +289,7 @@ fn execute_state_machine_returns_does_not_return_413_if_not_a_put_or_post() {
     ..WebmachineContext::default()
   };
   let resource = WebmachineResource {
-    valid_entity_length: callback(&|_, _| false),
+    valid_entity_length: callback(|_, _| false),
     ..WebmachineResource::default()
   };
   execute_state_machine(&mut context, &resource);
@@ -306,8 +306,8 @@ fn execute_state_machine_returns_headers_for_option_request() {
     ..WebmachineContext::default()
   };
   let resource = WebmachineResource {
-    allowed_methods: vec!["OPTIONS"],
-    options: callback(&|_, _| Some(hashmap! {
+    allowed_methods: owned_vec(&["OPTIONS"]),
+    options: callback(|_, _| Some(hashmap! {
       "A".to_string() => vec!["B".to_string()],
       "C".to_string() => vec!["D;E=F".to_string()],
     })),
@@ -331,7 +331,7 @@ fn execute_state_machine_returns_406_if_the_request_does_not_have_an_acceptable_
     ..WebmachineContext::default()
   };
   let resource = WebmachineResource {
-    produces: vec!["application/javascript"],
+    produces: owned_vec(&["application/javascript"]),
     ..WebmachineResource::default()
   };
   execute_state_machine(&mut context, &resource);
@@ -350,7 +350,7 @@ fn execute_state_machine_sets_content_type_header_if_the_request_does_have_an_ac
     ..WebmachineContext::default()
   };
   let resource = WebmachineResource {
-    produces: vec!["application/xml"],
+    produces: owned_vec(&["application/xml"]),
     ..WebmachineResource::default()
   };
   execute_state_machine(&mut context, &resource);
@@ -371,7 +371,7 @@ fn execute_state_machine_returns_406_if_the_request_does_not_have_an_acceptable_
     ..WebmachineContext::default()
   };
   let resource = WebmachineResource {
-    languages_provided: vec!["en"],
+    languages_provided: owned_vec(&["en"]),
     ..WebmachineResource::default()
   };
   execute_state_machine(&mut context, &resource);
@@ -390,7 +390,7 @@ fn execute_state_machine_sets_the_language_header_if_the_request_does_have_an_ac
     ..WebmachineContext::default()
   };
   let resource = WebmachineResource {
-    languages_provided: vec!["en"],
+    languages_provided: owned_vec(&["en"]),
     ..WebmachineResource::default()
   };
   execute_state_machine(&mut context, &resource);
@@ -410,7 +410,7 @@ fn execute_state_machine_returns_406_if_the_request_does_not_have_an_acceptable_
     ..WebmachineContext::default()
   };
   let resource = WebmachineResource {
-    charsets_provided: vec!["UTF-8", "US-ASCII"],
+    charsets_provided: owned_vec(&["UTF-8", "US-ASCII"]),
     ..WebmachineResource::default()
   };
   execute_state_machine(&mut context, &resource);
@@ -429,7 +429,7 @@ fn execute_state_machine_sets_the_charset_if_the_request_does_have_an_acceptable
     ..WebmachineContext::default()
   };
   let resource = WebmachineResource {
-    charsets_provided: vec!["UTF-8", "US-ASCII"],
+    charsets_provided: owned_vec(&["UTF-8", "US-ASCII"]),
     ..WebmachineResource::default()
   };
   execute_state_machine(&mut context, &resource);
@@ -450,7 +450,7 @@ fn execute_state_machine_returns_406_if_the_request_does_not_have_an_acceptable_
     ..WebmachineContext::default()
   };
   let resource = WebmachineResource {
-    encodings_provided: vec!["identity"],
+    encodings_provided: owned_vec(&["identity"]),
     ..WebmachineResource::default()
   };
   execute_state_machine(&mut context, &resource);
@@ -466,7 +466,7 @@ fn execute_state_machine_sets_the_vary_header_if_the_resource_has_variances() {
     ..WebmachineContext::default()
   };
   let resource = WebmachineResource {
-    variances: vec!["HEADER-A", "HEADER-B"],
+    variances: owned_vec(&["HEADER-A", "HEADER-B"]),
     ..WebmachineResource::default()
   };
   execute_state_machine(&mut context, &resource);
@@ -487,7 +487,7 @@ fn execute_state_machine_returns_404_if_the_resource_does_not_exist() {
     ..WebmachineContext::default()
   };
   let resource = WebmachineResource {
-    resource_exists: callback(&|_, _| false),
+    resource_exists: callback(|_, _| false),
     ..WebmachineResource::default()
   };
   execute_state_machine(&mut context, &resource);
@@ -506,7 +506,7 @@ fn execute_state_machine_returns_412_if_the_resource_does_not_exist_and_there_is
     ..WebmachineContext::default()
   };
   let resource = WebmachineResource {
-    resource_exists: callback(&|_, _| false),
+    resource_exists: callback(|_, _| false),
     ..WebmachineResource::default()
   };
   execute_state_machine(&mut context, &resource);
@@ -523,9 +523,9 @@ fn execute_state_machine_returns_301_and_sets_location_header_if_the_resource_ha
     ..WebmachineContext::default()
   };
   let resource = WebmachineResource {
-    allowed_methods: vec!["PUT"],
-    resource_exists: callback(&|_, _| false),
-    moved_permanently: callback(&|_, _| Some("http://go.away.com/to/here".to_string())),
+    allowed_methods: owned_vec(&["PUT"]),
+    resource_exists: callback(|_, _| false),
+    moved_permanently: callback(|_, _| Some("http://go.away.com/to/here".to_string())),
     ..WebmachineResource::default()
   };
   execute_state_machine(&mut context, &resource);
@@ -545,9 +545,9 @@ fn execute_state_machine_returns_409_if_the_put_request_is_a_conflict() {
     ..WebmachineContext::default()
   };
   let resource = WebmachineResource {
-    allowed_methods: vec!["PUT"],
-    resource_exists: callback(&|_, _| false),
-    is_conflict: callback(&|_, _| true),
+    allowed_methods: owned_vec(&["PUT"]),
+    resource_exists: callback(|_, _| false),
+    is_conflict: callback(|_, _| true),
     ..WebmachineResource::default()
   };
   execute_state_machine(&mut context, &resource);
@@ -564,9 +564,9 @@ fn execute_state_machine_returns_404_if_the_resource_does_not_exist_and_does_not
     ..WebmachineContext::default()
   };
   let resource = WebmachineResource {
-    allowed_methods: vec!["POST"],
-    resource_exists: callback(&|_, _| false),
-    allow_missing_post: callback(&|_, _| false),
+    allowed_methods: owned_vec(&["POST"]),
+    resource_exists: callback(|_, _| false),
+    allow_missing_post: callback(|_, _| false),
     ..WebmachineResource::default()
   };
   execute_state_machine(&mut context, &resource);
@@ -583,10 +583,10 @@ fn execute_state_machine_returns_301_and_sets_location_header_if_the_resource_ha
     ..WebmachineContext::default()
   };
   let resource = WebmachineResource {
-    allowed_methods: vec!["POST"],
-    resource_exists: callback(&|_, _| false),
-    previously_existed: callback(&|_, _| true),
-    moved_permanently: callback(&|_, _| Some("http://go.away.com/to/here".to_string())),
+    allowed_methods: owned_vec(&["POST"]),
+    resource_exists: callback(|_, _| false),
+    previously_existed: callback(|_, _| true),
+    moved_permanently: callback(|_, _| Some("http://go.away.com/to/here".to_string())),
     ..WebmachineResource::default()
   };
   execute_state_machine(&mut context, &resource);
@@ -605,9 +605,9 @@ fn execute_state_machine_returns_307_and_sets_location_header_if_the_resource_ha
     ..WebmachineContext::default()
   };
   let resource = WebmachineResource {
-    resource_exists: callback(&|_, _| false),
-    previously_existed: callback(&|_, _| true),
-    moved_temporarily: callback(&|_, _| Some("http://go.away.com/to/here".to_string())),
+    resource_exists: callback(|_, _| false),
+    previously_existed: callback(|_, _| true),
+    moved_temporarily: callback(|_, _| Some("http://go.away.com/to/here".to_string())),
     ..WebmachineResource::default()
   };
   execute_state_machine(&mut context, &resource);
@@ -626,8 +626,8 @@ fn execute_state_machine_returns_410_if_the_resource_has_prev_existed_and_not_a_
     ..WebmachineContext::default()
   };
   let resource = WebmachineResource {
-    resource_exists: callback(&|_, _| false),
-    previously_existed: callback(&|_, _| true),
+    resource_exists: callback(|_, _| false),
+    previously_existed: callback(|_, _| true),
     ..WebmachineResource::default()
   };
   execute_state_machine(&mut context, &resource);
@@ -644,10 +644,10 @@ fn execute_state_machine_returns_410_if_the_resource_has_prev_existed_and_a_post
     ..WebmachineContext::default()
   };
   let resource = WebmachineResource {
-    allowed_methods: vec!["POST"],
-    resource_exists: callback(&|_, _| false),
-    previously_existed: callback(&|_, _| true),
-    allow_missing_post: callback(&|_, _| false),
+    allowed_methods: owned_vec(&["POST"]),
+    resource_exists: callback(|_, _| false),
+    previously_existed: callback(|_, _| true),
+    allow_missing_post: callback(|_, _| false),
     ..WebmachineResource::default()
   };
   execute_state_machine(&mut context, &resource);
@@ -664,10 +664,10 @@ fn execute_state_machine_returns_404_if_the_resource_has_not_prev_existed_and_a_
     ..WebmachineContext::default()
   };
   let resource = WebmachineResource {
-    allowed_methods: vec!["POST"],
-    resource_exists: callback(&|_, _| false),
-    previously_existed: callback(&|_, _| false),
-    allow_missing_post: callback(&|_, _| false),
+    allowed_methods: owned_vec(&["POST"]),
+    resource_exists: callback(|_, _| false),
+    previously_existed: callback(|_, _| false),
+    allow_missing_post: callback(|_, _| false),
     ..WebmachineResource::default()
   };
   execute_state_machine(&mut context, &resource);
@@ -686,8 +686,8 @@ fn execute_state_machine_returns_412_if_the_resource_etag_does_not_match_if_matc
     ..WebmachineContext::default()
   };
   let resource = WebmachineResource {
-    resource_exists: callback(&|_, _| true),
-    generate_etag: callback(&|_, _| Some("1234567890".to_string())),
+    resource_exists: callback(|_, _| true),
+    generate_etag: callback(|_, _| Some("1234567890".to_string())),
     ..WebmachineResource::default()
   };
   execute_state_machine(&mut context, &resource);
@@ -706,8 +706,8 @@ fn execute_state_machine_returns_412_if_the_resource_etag_does_not_match_if_matc
     ..WebmachineContext::default()
   };
   let resource = WebmachineResource {
-    resource_exists: callback(&|_, _| true),
-    generate_etag: callback(&|_, _| Some("1234567890".to_string())),
+    resource_exists: callback(|_, _| true),
+    generate_etag: callback(|_, _| Some("1234567890".to_string())),
     ..WebmachineResource::default()
   };
   execute_state_machine(&mut context, &resource);
@@ -729,8 +729,8 @@ fn execute_state_machine_returns_412_if_the_resource_last_modified_gt_unmodified
     ..WebmachineContext::default()
   };
   let resource = WebmachineResource {
-    resource_exists: callback(&|_, _| true),
-    last_modified: callback(&|_, _| {
+    resource_exists: callback(|_, _| true),
+    last_modified: callback(|_, _| {
       let fixed_offset = FixedOffset::east_opt(10 * 3600).expect("FixedOffset::east out of bounds");
       Some(Local::now().with_timezone(&fixed_offset))
     }),
@@ -755,8 +755,8 @@ fn execute_state_machine_returns_304_if_non_match_star_exists_and_is_not_a_head_
     ..WebmachineContext::default()
   };
   let resource = WebmachineResource {
-    resource_exists: callback(&|_, _| true),
-    allowed_methods: vec!["POST"],
+    resource_exists: callback(|_, _| true),
+    allowed_methods: owned_vec(&["POST"]),
     ..WebmachineResource::default()
   };
   execute_state_machine(&mut context, &resource);
@@ -776,8 +776,8 @@ fn execute_state_machine_returns_304_if_non_match_star_exists_and_is_a_head_or_g
     ..WebmachineContext::default()
   };
   let resource = WebmachineResource {
-    resource_exists: callback(&|_, _| true),
-    allowed_methods: vec!["HEAD"],
+    resource_exists: callback(|_, _| true),
+    allowed_methods: owned_vec(&["HEAD"]),
     ..WebmachineResource::default()
   };
   execute_state_machine(&mut context, &resource);
@@ -797,9 +797,9 @@ fn execute_state_machine_returns_412_if_resource_etag_in_if_non_match_and_is_not
     ..WebmachineContext::default()
   };
   let resource = WebmachineResource {
-    resource_exists: callback(&|_, _| true),
-    allowed_methods: vec!["POST"],
-    generate_etag: callback(&|_, _| Some("1234567890".to_string())),
+    resource_exists: callback(|_, _| true),
+    allowed_methods: owned_vec(&["POST"]),
+    generate_etag: callback(|_, _| Some("1234567890".to_string())),
     ..WebmachineResource::default()
   };
   execute_state_machine(&mut context, &resource);
@@ -818,8 +818,8 @@ fn execute_state_machine_returns_304_if_resource_etag_in_if_non_match_and_is_a_h
     ..WebmachineContext::default()
   };
   let resource = WebmachineResource {
-    resource_exists: callback(&|_, _| true),
-    generate_etag: callback(&|_, _| Some("1234567890".to_string())),
+    resource_exists: callback(|_, _| true),
+    generate_etag: callback(|_, _| Some("1234567890".to_string())),
     ..WebmachineResource::default()
   };
   execute_state_machine(&mut context, &resource);
@@ -841,8 +841,8 @@ fn execute_state_machine_returns_304_if_the_resource_last_modified_gt_modified_s
     ..WebmachineContext::default()
   };
   let resource = WebmachineResource {
-    resource_exists: callback(&|_, _| true),
-    last_modified: callback(&|_, _| {
+    resource_exists: callback(|_, _| true),
+    last_modified: callback(|_, _| {
       let offset = FixedOffset::east_opt(10 * 3600).expect("FixedOffset::east out of bounds");
       Some(Local::now().with_timezone(&offset) - Duration::minutes(15))
     }),
@@ -862,9 +862,9 @@ fn execute_state_machine_returns_202_if_delete_was_not_enacted() {
     ..WebmachineContext::default()
   };
   let resource = WebmachineResource {
-    resource_exists: callback(&|_, _| true),
-    delete_resource: callback(&|_, _| Ok(false)),
-    allowed_methods: vec!["DELETE"],
+    resource_exists: callback(|_, _| true),
+    delete_resource: callback(|_, _| Ok(false)),
+    allowed_methods: owned_vec(&["DELETE"]),
     ..WebmachineResource::default()
   };
   execute_state_machine(&mut context, &resource);
@@ -881,9 +881,9 @@ fn execute_state_machine_returns_a_resource_status_code_if_delete_fails() {
     ..WebmachineContext::default()
   };
   let resource = WebmachineResource {
-    resource_exists: callback(&|_, _| true),
-    delete_resource: callback(&|_, _| Err(500)),
-    allowed_methods: vec!["DELETE"],
+    resource_exists: callback(|_, _| true),
+    delete_resource: callback(|_, _| Err(500)),
+    allowed_methods: owned_vec(&["DELETE"]),
     ..WebmachineResource::default()
   };
   execute_state_machine(&mut context, &resource);
@@ -911,10 +911,10 @@ fn execute_state_machine_returns_a_resource_status_code_if_post_fails_and_post_i
     ..WebmachineContext::default()
   };
   let resource = WebmachineResource {
-    resource_exists: callback(&|_, _| true),
-    post_is_create: callback(&|_, _| true),
-    create_path: callback(&|_, _| Err(500)),
-    allowed_methods: vec!["POST"],
+    resource_exists: callback(|_, _| true),
+    post_is_create: callback(|_, _| true),
+    create_path: callback(|_, _| Err(500)),
+    allowed_methods: owned_vec(&["POST"]),
     ..WebmachineResource::default()
   };
   execute_state_machine(&mut context, &resource);
@@ -931,10 +931,10 @@ fn execute_state_machine_returns_a_resource_status_code_if_post_fails_and_post_i
     ..WebmachineContext::default()
   };
   let resource = WebmachineResource {
-    resource_exists: callback(&|_, _| true),
-    post_is_create: callback(&|_, _| false),
-    process_post: callback(&|_, _| Err(500)),
-    allowed_methods: vec!["POST"],
+    resource_exists: callback(|_, _| true),
+    post_is_create: callback(|_, _| false),
+    process_post: callback(|_, _| Err(500)),
+    allowed_methods: owned_vec(&["POST"]),
     ..WebmachineResource::default()
   };
   execute_state_machine(&mut context, &resource);
@@ -952,13 +952,13 @@ fn execute_state_machine_returns_303_and_post_is_create_and_redirect_is_set() {
     ..WebmachineContext::default()
   };
   let resource = WebmachineResource {
-    resource_exists: callback(&|_, _| true),
-    post_is_create: callback(&|_, _| true),
-    create_path: callback(&|context, _| {
+    resource_exists: callback(|_, _| true),
+    post_is_create: callback(|_, _| true),
+    create_path: callback(|context, _| {
       context.redirect = true;
       Ok("/new/path".to_string())
     }),
-    allowed_methods: vec!["POST"],
+    allowed_methods: owned_vec(&["POST"]),
     ..WebmachineResource::default()
   };
   execute_state_machine(&mut context, &resource);
@@ -978,13 +978,13 @@ fn execute_state_machine_returns_303_if_post_is_not_create_and_redirect_is_set()
     ..WebmachineContext::default()
   };
   let resource = WebmachineResource {
-    resource_exists: callback(&|_, _| true),
-    post_is_create: callback(&|_, _| false),
-    process_post: callback(&|context, _| {
+    resource_exists: callback(|_, _| true),
+    post_is_create: callback(|_, _| false),
+    process_post: callback(|context, _| {
       context.redirect = true;
       Ok(true)
     }),
-    allowed_methods: vec!["POST"],
+    allowed_methods: owned_vec(&["POST"]),
     ..WebmachineResource::default()
   };
   execute_state_machine(&mut context, &resource);
@@ -1001,15 +1001,15 @@ fn execute_state_machine_returns_303_if_post_to_missing_resource_and_redirect_is
     ..WebmachineContext::default()
   };
   let resource = WebmachineResource {
-    resource_exists: callback(&|_, _| false),
-    previously_existed: callback(&|_, _| false),
-    allow_missing_post: callback(&|_, _| true),
-    post_is_create: callback(&|_, _| false),
-    process_post: callback(&|context, _| {
+    resource_exists: callback(|_, _| false),
+    previously_existed: callback(|_, _| false),
+    allow_missing_post: callback(|_, _| true),
+    post_is_create: callback(|_, _| false),
+    process_post: callback(|context, _| {
       context.redirect = true;
       Ok(true)
     }),
-    allowed_methods: vec!["POST"],
+    allowed_methods: owned_vec(&["POST"]),
     ..WebmachineResource::default()
   };
   execute_state_machine(&mut context, &resource);
@@ -1026,12 +1026,12 @@ fn execute_state_machine_returns_201_if_post_creates_new_resource() {
     ..WebmachineContext::default()
   };
   let resource = WebmachineResource {
-    resource_exists: callback(&|_, _| false),
-    previously_existed: callback(&|_, _| false),
-    allow_missing_post: callback(&|_, _| true),
-    post_is_create: callback(&|_, _| true),
-    create_path: callback(&|_, _| { Ok("/new/path".to_string()) }),
-    allowed_methods: vec!["POST"],
+    resource_exists: callback(|_, _| false),
+    previously_existed: callback(|_, _| false),
+    allow_missing_post: callback(|_, _| true),
+    post_is_create: callback(|_, _| true),
+    create_path: callback(|_, _| { Ok("/new/path".to_string()) }),
+    allowed_methods: owned_vec(&["POST"]),
     ..WebmachineResource::default()
   };
   execute_state_machine(&mut context, &resource);
@@ -1051,8 +1051,8 @@ fn execute_state_machine_returns_201_if_put_to_new_resource() {
     ..WebmachineContext::default()
   };
   let resource = WebmachineResource {
-    resource_exists: callback(&|_, _| false),
-    allowed_methods: vec!["PUT"],
+    resource_exists: callback(|_, _| false),
+    allowed_methods: owned_vec(&["PUT"]),
     ..WebmachineResource::default()
   };
   execute_state_machine(&mut context, &resource);
@@ -1069,9 +1069,9 @@ fn execute_state_machine_returns_409_for_existing_resource_if_the_put_request_is
     ..WebmachineContext::default()
   };
   let resource = WebmachineResource {
-    allowed_methods: vec!["PUT"],
-    resource_exists: callback(&|_, _| true),
-    is_conflict: callback(&|_, _| true),
+    allowed_methods: owned_vec(&["PUT"]),
+    resource_exists: callback(|_, _| true),
+    is_conflict: callback(|_, _| true),
     ..WebmachineResource::default()
   };
   execute_state_machine(&mut context, &resource);
@@ -1088,10 +1088,10 @@ fn execute_state_machine_returns_200_if_put_request_to_existing_resource() {
     ..WebmachineContext::default()
   };
   let resource = WebmachineResource {
-    allowed_methods: vec!["PUT"],
-    resource_exists: callback(&|_, _| true),
-    process_put: callback(&|context, _| {
-      context.response.body = Some("body".as_bytes().to_vec());
+    allowed_methods: owned_vec(&["PUT"]),
+    resource_exists: callback(|_, _| true),
+    process_put: callback(|context, _| {
+      context.response.body = Some(Bytes::from("body"));
       Ok(true)
     }),
     ..WebmachineResource::default()
@@ -1110,8 +1110,8 @@ fn execute_state_machine_returns_204_if_put_request_to_existing_resource_with_no
     ..WebmachineContext::default()
   };
   let resource = WebmachineResource {
-    allowed_methods: vec!["PUT"],
-    resource_exists: callback(&|_, _| true),
+    allowed_methods: owned_vec(&["PUT"]),
+    resource_exists: callback(|_, _| true),
     ..WebmachineResource::default()
   };
   execute_state_machine(&mut context, &resource);
@@ -1127,8 +1127,8 @@ fn execute_state_machine_returns_300_if_multiple_choices_is_true() {
     ..WebmachineContext::default()
   };
   let resource = WebmachineResource {
-    resource_exists: callback(&|_, _| true),
-    multiple_choices: callback(&|_, _| true),
+    resource_exists: callback(|_, _| true),
+    multiple_choices: callback(|_, _| true),
     ..WebmachineResource::default()
   };
   execute_state_machine(&mut context, &resource);
@@ -1145,9 +1145,9 @@ fn execute_state_machine_returns_204_if_delete_was_enacted_and_response_has_no_b
     ..WebmachineContext::default()
   };
   let resource = WebmachineResource {
-    resource_exists: callback(&|_, _| true),
-    delete_resource: callback(&|_, _| Ok(true)),
-    allowed_methods: vec!["DELETE"],
+    resource_exists: callback(|_, _| true),
+    delete_resource: callback(|_, _| Ok(true)),
+    allowed_methods: owned_vec(&["DELETE"]),
     ..WebmachineResource::default()
   };
   execute_state_machine(&mut context, &resource);
@@ -1164,12 +1164,12 @@ fn execute_state_machine_returns_200_if_delete_was_enacted_and_response_has_a_bo
     ..WebmachineContext::default()
   };
   let resource = WebmachineResource {
-    resource_exists: callback(&|_, _| true),
-    delete_resource: callback(&|context, _| {
-      context.response.body = Some("body".as_bytes().to_vec());
+    resource_exists: callback(|_, _| true),
+    delete_resource: callback(|context, _| {
+      context.response.body = Some(Bytes::from("body"));
       Ok(true)
     }),
-    allowed_methods: vec!["DELETE"],
+    allowed_methods: owned_vec(&["DELETE"]),
     ..WebmachineResource::default()
   };
   execute_state_machine(&mut context, &resource);

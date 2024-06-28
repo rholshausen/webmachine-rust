@@ -5,7 +5,6 @@ use std::collections::{BTreeMap, HashMap};
 
 use bytes::Bytes;
 use chrono::{DateTime, FixedOffset};
-use itertools::Itertools;
 use maplit::hashmap;
 
 use crate::headers::HeaderValue;
@@ -163,7 +162,7 @@ pub struct WebmachineResponse {
     /// headers to return
     pub headers: BTreeMap<String, Vec<HeaderValue>>,
     /// Response Body
-    pub body: Option<Vec<u8>>
+    pub body: Option<Bytes>
 }
 
 impl WebmachineResponse {
@@ -194,7 +193,7 @@ impl WebmachineResponse {
     }
 
     /// Adds standard CORS headers to the response
-    pub fn add_cors_headers(&mut self, allowed_methods: &Vec<&str>) {
+    pub fn add_cors_headers(&mut self, allowed_methods: &Vec<String>) {
       let cors_headers = WebmachineResponse::cors_headers(allowed_methods);
       for (k, v) in cors_headers {
         self.add_header(k.as_str(), v.iter().map(HeaderValue::basic).collect());
@@ -202,10 +201,10 @@ impl WebmachineResponse {
     }
 
     /// Returns a HashMap of standard CORS headers
-    pub fn cors_headers(allowed_methods: &Vec<&str>) -> HashMap<String, Vec<String>> {
+    pub fn cors_headers(allowed_methods: &Vec<String>) -> HashMap<String, Vec<String>> {
       hashmap!{
         "Access-Control-Allow-Origin".to_string() => vec!["*".to_string()],
-        "Access-Control-Allow-Methods".to_string() => allowed_methods.iter().cloned().map_into().collect(),
+        "Access-Control-Allow-Methods".to_string() => allowed_methods.clone(),
         "Access-Control-Allow-Headers".to_string() => vec!["Content-Type".to_string()]
       }
     }
@@ -217,6 +216,17 @@ impl WebmachineResponse {
             &Some(ref body) => !body.is_empty()
         }
     }
+}
+
+/// Values that can be stored as metadata
+#[derive(Debug, Clone, PartialEq)]
+pub enum MetaDataValue {
+  /// String Value
+  String(String),
+  /// Unsigned integer
+  UInteger(u64),
+  /// Signed integer
+  Integer(i64)
 }
 
 /// Main context struct that holds the request and response.
@@ -243,7 +253,7 @@ pub struct WebmachineContext {
   /// If a new resource was created
   pub new_resource: bool,
   /// General store of metadata. You can use this to store attributes as the webmachine executes.
-  pub metadata: HashMap<String, String>
+  pub metadata: HashMap<String, MetaDataValue>
 }
 
 impl Default for WebmachineContext {
