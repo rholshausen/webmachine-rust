@@ -1,5 +1,12 @@
 
 
+# 0.5.0 - Refactor: simplify things by removing all references, lifetimes, arcs and mutexes
+
+* c43fb7d - feat: Implement Default and From for MetaDataValue (Ronald Holshausen, Fri Jun 28 15:10:50 2024 +1000)
+* 7567ef0 - Refactor: simplify things by removing all references, lifetimes, arcs and mutexes (Ronald Holshausen, Fri Jun 28 14:24:58 2024 +1000)
+* b1e9ba2 - chore: Bump minor version (Ronald Holshausen, Fri Jun 28 12:45:03 2024 +1000)
+* dc2936f - bump version to 0.4.1 (Ronald Holshausen, Fri Jun 7 15:55:59 2024 +1000)
+
 # 0.4.0 - Upgrade Hyper and Http crates to 1.0
 
 * 6ed86b0 - chore: Update readme (Ronald Holshausen, Fri Jun 7 12:49:51 2024 +1000)
