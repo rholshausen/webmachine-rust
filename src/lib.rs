@@ -83,7 +83,7 @@ Note: This example uses the maplit crate to provide the `btreemap` macro and the
                 ready(Ok(Some(Bytes::from(json_response.to_string())))).boxed()
             }),
             // callback to process the post for the resource
-            process_post: callback(|_, _|  /* Handle the post here */ Ok(true) ),
+            process_post: async_callback(|_, _|  /* Handle the post here */ ready(Ok(true)).boxed() ),
             // default everything else
             .. WebmachineResource::default()
           }
@@ -265,7 +265,7 @@ pub struct WebmachineResource {
   /// return an Err with the status code you wish returned (e.g., a 500 status makes sense).
   /// Default is false. If you want the result of processing the POST to be a redirect, set
   /// `context.redirect` to true.
-  pub process_post: WebmachineCallback<Result<bool, u16>>,
+  pub process_post: AsyncWebmachineCallback<Result<bool, u16>>,
   /// This will be called on a POST request if `post_is_create` returns true. It should create
   /// the new resource and return the path as a valid URI part following the dispatcher prefix.
   /// That path will replace the previous one in the return value of `WebmachineRequest.request_path`
@@ -330,7 +330,7 @@ impl Default for WebmachineResource {
       last_modified: callback(none_fn),
       delete_resource: callback(|_, _| Ok(true)),
       post_is_create: callback(false_fn),
-      process_post: callback(|_, _| Ok(false)),
+      process_post: async_callback(|_, _| ready(Ok(false)).boxed()),
       process_put: callback(|_, _| Ok(true)),
       multiple_choices: callback(false_fn),
       create_path: callback(|context, _| Ok(context.request.request_path.clone())),
@@ -557,7 +557,7 @@ fn validate_header_date(
   }
 }
 
-fn execute_decision(
+async fn execute_decision(
   decision: &Decision,
   context: &mut WebmachineContext,
   resource: &WebmachineResource
@@ -770,7 +770,7 @@ fn execute_decision(
           Err(status) => DecisionResult::StatusCode(status)
         }
       } else {
-        match (resource.process_post)(context, resource) {
+        match (resource.process_post)(context, resource).await {
           Ok(_) => DecisionResult::wrap(context.redirect, "processing POST succeeded"),
           Err(status) => DecisionResult::StatusCode(status)
         }
@@ -798,7 +798,7 @@ fn execute_decision(
   }
 }
 
-fn execute_state_machine(context: &mut WebmachineContext, resource: &WebmachineResource) {
+async fn execute_state_machine(context: &mut WebmachineContext, resource: &WebmachineResource) {
   let mut state = Decision::Start;
   let mut decisions: Vec<(Decision, bool, Decision)> = Vec::new();
   let mut loop_count = 0;
@@ -815,7 +815,7 @@ fn execute_state_machine(context: &mut WebmachineContext, resource: &WebmachineR
           decision.clone()
         },
         Transition::Branch(decision_true, decision_false) => {
-          match execute_decision(&state, context, resource) {
+          match execute_decision(&state, context, resource).await {
             DecisionResult::True(reason) => {
               trace!("Transitioning from {:?} to {:?} as decision is true -> {}", state, decision_true, reason);
               decisions.push((state, true, decision_true.clone()));
@@ -1137,7 +1137,7 @@ impl WebmachineDispatcher {
       Some(path) => {
         update_paths_for_resource(&mut context.request, path);
         if let Some(resource) = self.lookup_resource(path) {
-          execute_state_machine(context, &resource);
+          execute_state_machine(context, &resource).await;
           finalise_response(context, &resource).await;
         } else {
           context.response.status = 404;
