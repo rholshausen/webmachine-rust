@@ -42,22 +42,26 @@ Each WebmachineResource defines all the callbacks (via Closures) and values requ
 Note: This example uses the maplit crate to provide the `btreemap` macro and the log crate for the logging macros.
 
  ```no_run
+ use std::convert::Infallible;
+ use std::future::ready;
+ use std::io::Read;
+ use std::net::SocketAddr;
+ use std::sync::Arc;
+
  use webmachine_rust::*;
  use webmachine_rust::context::*;
  use webmachine_rust::headers::*;
+
  use bytes::Bytes;
- use serde_json::{Value, json};
- use std::io::Read;
- use std::net::SocketAddr;
- use std::convert::Infallible;
- use std::sync::Arc;
- use maplit::btreemap;
- use tracing::error;
- use hyper_util::rt::TokioIo;
- use tokio::net::TcpListener;
+ use futures_util::future::FutureExt;
+ use hyper::{body, Request};
  use hyper::server::conn::http1;
  use hyper::service::service_fn;
- use hyper::{body, Request};
+ use hyper_util::rt::TokioIo;
+ use maplit::btreemap;
+ use serde_json::{Value, json};
+ use tracing::error;
+ use tokio::net::TcpListener;
 
  # fn main() {}
 
@@ -71,12 +75,12 @@ Note: This example uses the maplit crate to provide the `btreemap` macro and the
             allowed_methods: owned_vec(&["OPTIONS", "GET", "HEAD", "POST"]),
             // if the resource exists callback
             resource_exists: callback(|_, _| true),
-            // callback to render the response for the resource
-            render_response: callback(|_, _| {
+            // callback to render the response for the resource, it has to be async
+            render_response: async_callback(|_, _| {
                 let json_response = json!({
                    "data": [1, 2, 3, 4]
                 });
-                Some(Bytes::from(json_response.to_string()))
+                ready(Ok(Some(Bytes::from(json_response.to_string())))).boxed()
             }),
             // callback to process the post for the resource
             process_post: callback(|_, _|  /* Handle the post here */ Ok(true) ),
@@ -114,9 +118,12 @@ For an example of a project using this crate, have a look at the [Pact Mock Serv
 #![warn(missing_docs)]
 
 use std::collections::{BTreeMap, HashMap};
+use std::future::ready;
+use std::pin::Pin;
 
 use bytes::Bytes;
 use chrono::{DateTime, FixedOffset, Utc};
+use futures_util::future::FutureExt;
 use http::{HeaderMap, Request, Response};
 use http_body_util::{BodyExt, Full};
 use hyper::body::Incoming;
@@ -141,6 +148,15 @@ pub fn callback<T, RT>(cb: T) -> WebmachineCallback<RT>
   Box::new(cb)
 }
 
+/// Wrap an async callback in a structure that is safe to call between threads
+pub type AsyncWebmachineCallback<T> = Pin<Box<dyn Fn(&mut WebmachineContext, &WebmachineResource) -> Pin<Box<dyn Future<Output=T> + Send>> + Send + Sync>>;
+
+/// Wrap a callback in a structure that is safe to call between threads
+pub fn async_callback<T, RT>(cb: T) -> Pin<Box<T>>
+  where T: Fn(&mut WebmachineContext, &WebmachineResource) -> Pin<Box<dyn Future<Output=RT> + Send>> {
+  Box::pin(cb)
+}
+
 /// Convenience function to create a vector of string structs from a slice of strings
 pub fn owned_vec(strings: &[&str]) -> Vec<String> {
   strings.iter().map(|s| s.to_string()).collect()
@@ -152,7 +168,7 @@ pub struct WebmachineResource {
   /// an opportunity to modify the response after the webmachine has executed.
   pub finalise_response: Option<WebmachineCallback<()>>,
   /// This is invoked to render the response for the resource
-  pub render_response: WebmachineCallback<Option<Bytes>>,
+  pub render_response: AsyncWebmachineCallback<anyhow::Result<Option<Bytes>>>,
   /// Is the resource available? Returning false will result in a '503 Service Not Available'
   /// response. Defaults to true. If the resource is only temporarily not available,
   /// add a 'Retry-After' response header.
@@ -319,7 +335,7 @@ impl Default for WebmachineResource {
       multiple_choices: callback(false_fn),
       create_path: callback(|context, _| Ok(context.request.request_path.clone())),
       expires: callback(none_fn),
-      render_response: callback(none_fn)
+      render_response: async_callback(|_, _| ready(Ok(None)).boxed())
     }
   }
 }
@@ -973,7 +989,7 @@ async fn request_from_http_request(req: Request<Incoming>) -> WebmachineRequest 
   }
 }
 
-fn finalise_response(context: &mut WebmachineContext, resource: &WebmachineResource) {
+async fn finalise_response(context: &mut WebmachineContext, resource: &WebmachineResource) {
   if !context.response.has_header("Content-Type") {
     let media_type = match &context.selected_media_type {
       &Some(ref media_type) => media_type.clone(),
@@ -1039,9 +1055,14 @@ fn finalise_response(context: &mut WebmachineContext, resource: &WebmachineResou
   }
 
   if context.response.body.is_none() && context.response.status == 200 && context.request.is_get() {
-    match (resource.render_response)(context, resource) {
-      Some(body) => context.response.body = Some(body),
-      None => ()
+    match (resource.render_response)(context, resource).await {
+      Ok(Some(body)) => context.response.body = Some(body),
+      Ok(None) => (),
+      Err(err) => {
+        error!("render_response failed with an error: {}", err);
+        context.response.status = 500;
+        context.response.body = Some(Bytes::from(err.to_string()));
+      }
     }
   }
 
@@ -1079,7 +1100,7 @@ impl WebmachineDispatcher {
   /// based on the request path. If one is not found, a 404 Not Found response is returned
   pub async fn dispatch(&self, req: Request<Incoming>) -> http::Result<Response<Full<Bytes>>> {
     let mut context = self.context_from_http_request(req).await;
-    self.dispatch_to_resource(&mut context);
+    self.dispatch_to_resource(&mut context).await;
     generate_http_response(&context)
   }
 
@@ -1107,7 +1128,7 @@ impl WebmachineDispatcher {
 
   /// Dispatches to the matching webmachine resource. If there is no matching resource, returns
   /// 404 Not Found response
-  pub fn dispatch_to_resource(&self, context: &mut WebmachineContext) {
+  pub async fn dispatch_to_resource(&self, context: &mut WebmachineContext) {
     let matching_paths = self.match_paths(&context.request);
     let ordered_by_length: Vec<String> = matching_paths.iter()
       .cloned()
@@ -1117,7 +1138,7 @@ impl WebmachineDispatcher {
         update_paths_for_resource(&mut context.request, path);
         if let Some(resource) = self.lookup_resource(path) {
           execute_state_machine(context, &resource);
-          finalise_response(context, &resource);
+          finalise_response(context, &resource).await;
         } else {
           context.response.status = 404;
         }

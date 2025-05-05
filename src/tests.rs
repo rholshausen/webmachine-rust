@@ -55,13 +55,13 @@ fn sanitise_path_test() {
   expect!(sanitise_path(&"/a//b/c".to_string())).to(be_equal_to(vec!["a", "b", "c"]));
 }
 
-#[test]
-fn dispatcher_returns_404_if_there_is_no_matching_resource() {
+#[tokio::test]
+async fn dispatcher_returns_404_if_there_is_no_matching_resource() {
   let mut context = WebmachineContext::default();
   let displatcher = WebmachineDispatcher {
     routes: btreemap! { "/some/path" => WebmachineResource::default() }
   };
-  displatcher.dispatch_to_resource(&mut context);
+  displatcher.dispatch_to_resource(&mut context).await;
   expect(context.response.status).to(be_equal_to(404));
 }
 
@@ -338,8 +338,8 @@ fn execute_state_machine_returns_406_if_the_request_does_not_have_an_acceptable_
   expect(context.response.status).to(be_equal_to(406));
 }
 
-#[test]
-fn execute_state_machine_sets_content_type_header_if_the_request_does_have_an_acceptable_content_type() {
+#[tokio::test]
+async fn execute_state_machine_sets_content_type_header_if_the_request_does_have_an_acceptable_content_type() {
   let mut context = WebmachineContext {
     request: WebmachineRequest {
       headers: hashmap! {
@@ -354,7 +354,7 @@ fn execute_state_machine_sets_content_type_header_if_the_request_does_have_an_ac
     ..WebmachineResource::default()
   };
   execute_state_machine(&mut context, &resource);
-  finalise_response(&mut context, &resource);
+  finalise_response(&mut context, &resource).await;
   expect(context.response.status).to(be_equal_to(200));
   expect(context.response.headers.get("Content-Type").unwrap()).to(be_equal_to(&vec![h!("application/xml;charset=ISO-8859-1")]));
 }
@@ -417,8 +417,8 @@ fn execute_state_machine_returns_406_if_the_request_does_not_have_an_acceptable_
   expect(context.response.status).to(be_equal_to(406));
 }
 
-#[test]
-fn execute_state_machine_sets_the_charset_if_the_request_does_have_an_acceptable_charset() {
+#[tokio::test]
+async fn execute_state_machine_sets_the_charset_if_the_request_does_have_an_acceptable_charset() {
   let mut context = WebmachineContext {
     request: WebmachineRequest {
       headers: hashmap! {
@@ -433,7 +433,7 @@ fn execute_state_machine_sets_the_charset_if_the_request_does_have_an_acceptable
     ..WebmachineResource::default()
   };
   execute_state_machine(&mut context, &resource);
-  finalise_response(&mut context, &resource);
+  finalise_response(&mut context, &resource).await;
   expect(context.response.status).to(be_equal_to(200));
   expect(context.response.headers.get("Content-Type").unwrap()).to(be_equal_to(&vec![h!("application/json;charset=UTF-8")]));
 }
@@ -457,8 +457,8 @@ fn execute_state_machine_returns_406_if_the_request_does_not_have_an_acceptable_
   expect(context.response.status).to(be_equal_to(406));
 }
 
-#[test]
-fn execute_state_machine_sets_the_vary_header_if_the_resource_has_variances() {
+#[tokio::test]
+async fn execute_state_machine_sets_the_vary_header_if_the_resource_has_variances() {
   let mut context = WebmachineContext {
     request: WebmachineRequest {
       ..WebmachineRequest::default()
@@ -470,7 +470,7 @@ fn execute_state_machine_sets_the_vary_header_if_the_resource_has_variances() {
     ..WebmachineResource::default()
   };
   execute_state_machine(&mut context, &resource);
-  finalise_response(&mut context, &resource);
+  finalise_response(&mut context, &resource).await;
   expect(context.response.status).to(be_equal_to(200));
   expect(context.response.headers).to(be_equal_to(btreemap! {
     "Content-Type".to_string() => vec![h!("application/json;charset=ISO-8859-1")],
