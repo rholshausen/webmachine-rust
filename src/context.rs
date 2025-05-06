@@ -44,13 +44,13 @@ impl Default for WebmachineRequest {
 impl WebmachineRequest {
     /// returns the content type of the request, based on the content type header. Defaults to
     /// 'application/json' if there is no header.
-    pub fn content_type(&self) -> String {
+    pub fn content_type(&self) -> HeaderValue {
       match self.headers.keys().find(|k| k.to_uppercase() == "CONTENT-TYPE") {
         Some(header) => match self.headers.get(header).unwrap().first() {
-          Some(value) => value.clone().value,
-          None => "application/json".to_string()
+          Some(value) => value.clone(),
+          None => HeaderValue::json()
         },
-        None => "application/json".to_string()
+        None => HeaderValue::json()
       }
     }
 

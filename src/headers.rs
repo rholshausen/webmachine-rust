@@ -118,13 +118,13 @@ fn skip_whitespace(chars: &mut Peekable<Chars>) {
 
 
 /// Struct to represent a header value and a map of header value parameters
-#[derive(Debug, Clone, Eq)]
+#[derive(Debug, Clone, Eq, Default)]
 pub struct HeaderValue {
     /// Value of the header
     pub value: String,
     /// Map of header value parameters
     pub params: HashMap<String, String>,
-    /// If the header should be qouted
+    /// If the header should be quoted
     pub quote: bool
 }
 
@@ -189,11 +189,20 @@ impl HeaderValue {
       }
     }
 
-    /// Convertes this header value into a quoted header value
+    /// Converts this header value into a quoted header value
     pub fn quote(mut self) -> HeaderValue {
         self.quote = true;
         self
     }
+
+  /// JSON content type
+  pub fn json() -> HeaderValue {
+    HeaderValue {
+      value: "application/json".to_string(),
+      params: Default::default(),
+      quote: false
+    }
+  }
 }
 
 impl PartialEq<HeaderValue> for HeaderValue {

@@ -247,6 +247,28 @@ async fn execute_state_machine_returns_does_not_return_415_if_not_a_put_or_post(
   expect(context.response.status).to_not(be_equal_to(415));
 }
 
+#[test_log::test(tokio::test)]
+async fn execute_state_machine_handles_content_types_with_parameters() {
+  let mut context = WebmachineContext {
+    request: WebmachineRequest {
+      method: "POST".to_string(),
+      headers: hashmap! {
+        "Content-type".to_string() => vec![HeaderValue::parse_string("application/xml;charset=UTF-8")]
+      },
+      ..WebmachineRequest::default()
+    },
+    ..WebmachineContext::default()
+  };
+  let resource = WebmachineResource {
+    acceptable_content_types: owned_vec(&["application/xml"]),
+    allowed_methods: owned_vec(&["POST"]),
+    ..WebmachineResource::default()
+  };
+  execute_state_machine(&mut context, &resource).await;
+  dbg!(&context);
+  expect!(context.response.status).to_not(be_equal_to(415));
+}
+
 #[test]
 fn parse_header_test() {
   expect(parse_header_values("").iter()).to(be_empty());

@@ -606,7 +606,10 @@ async fn execute_decision(
     },
     Decision::B5UnknownContentType => {
       DecisionResult::wrap(context.request.is_put_or_post() && resource.acceptable_content_types
-        .iter().find(|ct| context.request.content_type().to_uppercase() == ct.to_uppercase() )
+        .iter().find(|ct| {
+          let ct = HeaderValue::parse_string(ct);
+          context.request.content_type().value.to_lowercase() == ct.value.to_lowercase()
+        })
         .is_none(), "acceptable content types")
     },
     Decision::B4RequestEntityTooLarge => {
