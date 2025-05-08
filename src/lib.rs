@@ -134,10 +134,12 @@ use tracing::{debug, error, trace};
 
 use context::{WebmachineContext, WebmachineRequest, WebmachineResponse};
 use headers::HeaderValue;
+use crate::paths::map_path;
 
 #[macro_use] pub mod headers;
 pub mod context;
 pub mod content_negotiation;
+pub mod paths;
 
 /// Type of a Webmachine resource callback
 pub type WebmachineCallback<T> = Box<dyn Fn(&mut WebmachineContext, &WebmachineResource) -> T + Send + Sync>;
@@ -859,8 +861,15 @@ async fn execute_state_machine(context: &mut WebmachineContext, resource: &Webma
   }
 }
 
-fn update_paths_for_resource(request: &mut WebmachineRequest, base_path: &str) {
+fn update_paths_for_resource(
+  request: &mut WebmachineRequest,
+  base_path: &str,
+  mapped_parts: &Vec<(String, Option<String>)>
+) {
   request.base_path = base_path.into();
+  request.path_vars = mapped_parts.iter()
+    .filter_map(|(part, id)| id.as_ref().map(|id| (id.clone(), part.clone())))
+    .collect();
   if request.request_path.len() > base_path.len() {
     let request_path = request.request_path.clone();
     let subpath = request_path.split_at(base_path.len()).1;
@@ -985,6 +994,7 @@ async fn request_from_http_request(req: Request<Incoming>) -> WebmachineRequest 
   WebmachineRequest {
     request_path,
     base_path: "/".to_string(),
+    path_vars: Default::default(),
     method,
     headers,
     body,
@@ -1116,12 +1126,11 @@ impl WebmachineDispatcher {
     }
   }
 
-  fn match_paths(&self, request: &WebmachineRequest) -> Vec<String> {
-    let request_path = sanitise_path(&request.request_path);
+  fn match_paths(&self, request: &WebmachineRequest) -> Vec<(String, Vec<(String, Option<String>)>)> {
     self.routes
       .keys()
-      .filter(|k| request_path.starts_with(&sanitise_path(k)))
-      .map(|k| k.to_string())
+      .filter_map(|k| map_path(request.request_path.as_str(), k)
+        .map(|result| (k.to_string(), result)))
       .collect()
   }
 
@@ -1133,12 +1142,13 @@ impl WebmachineDispatcher {
   /// 404 Not Found response
   pub async fn dispatch_to_resource(&self, context: &mut WebmachineContext) {
     let matching_paths = self.match_paths(&context.request);
-    let ordered_by_length: Vec<String> = matching_paths.iter()
+    let ordered_by_length = matching_paths.iter()
       .cloned()
-      .sorted_by(|a, b| Ord::cmp(&b.len(), &a.len())).collect();
+      .sorted_by(|(a, _), (b, _)| Ord::cmp(&b.len(), &a.len()))
+      .collect_vec();
     match ordered_by_length.first() {
-      Some(path) => {
-        update_paths_for_resource(&mut context.request, path);
+      Some((path, parts)) => {
+        update_paths_for_resource(&mut context.request, path, parts);
         if let Some(resource) = self.lookup_resource(path) {
           execute_state_machine(context, &resource).await;
           finalise_response(context, &resource).await;

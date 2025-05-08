@@ -20,6 +20,7 @@ fn resource(path: &str) -> WebmachineRequest {
   WebmachineRequest {
     request_path: path.to_string(),
     base_path: "/".to_string(),
+    path_vars: Default::default(),
     method: "GET".to_string(),
     headers: HashMap::new(),
     body: None,
@@ -34,16 +35,61 @@ fn path_matcher_test() {
       "/" => WebmachineResource::default(),
       "/path1" => WebmachineResource::default(),
       "/path2" => WebmachineResource::default(),
-      "/path1/path3" => WebmachineResource::default()
+      "/path1/path3" => WebmachineResource::default(),
+      "/path2/{id}" => WebmachineResource::default(),
+      "/path2/{id}/path3" => WebmachineResource::default()
     }
   };
-  expect!(dispatcher.match_paths(&resource("/path1"))).to(be_equal_to(vec!["/", "/path1"]));
-  expect!(dispatcher.match_paths(&resource("/path1/"))).to(be_equal_to(vec!["/", "/path1"]));
-  expect!(dispatcher.match_paths(&resource("/path1/path3"))).to(be_equal_to(vec!["/", "/path1", "/path1/path3"]));
-  expect!(dispatcher.match_paths(&resource("/path1/path3/path4"))).to(be_equal_to(vec!["/", "/path1", "/path1/path3"]));
-  expect!(dispatcher.match_paths(&resource("/path1/other"))).to(be_equal_to(vec!["/", "/path1"]));
-  expect!(dispatcher.match_paths(&resource("/path12"))).to(be_equal_to(vec!["/"]));
-  expect!(dispatcher.match_paths(&resource("/"))).to(be_equal_to(vec!["/"]));
+
+  expect!(dispatcher.match_paths(&resource("/path1"))).to(be_equal_to(vec![
+    ("/".to_string(), vec![("path1".to_string(), None)]),
+    ("/path1".to_string(), vec![("path1".to_string(), None)]),
+  ]));
+  expect!(dispatcher.match_paths(&resource("/path1/"))).to(be_equal_to(vec![
+    ("/".to_string(), vec![("path1".to_string(), None)]),
+    ("/path1".to_string(), vec![("path1".to_string(), None)])]
+  ));
+  expect!(dispatcher.match_paths(&resource("/path1/path3"))).to(be_equal_to(vec![
+    ("/".to_string(), vec![("path1".to_string(), None), ("path3".to_string(), None)]),
+    ("/path1".to_string(), vec![("path1".to_string(), None), ("path3".to_string(), None)]),
+    ("/path1/path3".to_string(), vec![("path1".to_string(), None), ("path3".to_string(), None)])
+  ]));
+  expect!(dispatcher.match_paths(&resource("/path1/path3/path4"))).to(be_equal_to(vec![
+    ("/".to_string(), vec![("path1".to_string(), None), ("path3".to_string(), None), ("path4".to_string(), None)]),
+    ("/path1".to_string(), vec![("path1".to_string(), None), ("path3".to_string(), None), ("path4".to_string(), None)]),
+    ("/path1/path3".to_string(), vec![("path1".to_string(), None), ("path3".to_string(), None), ("path4".to_string(), None)])
+  ]));
+  expect!(dispatcher.match_paths(&resource("/path1/other"))).to(be_equal_to(vec![
+    ("/".to_string(), vec![("path1".to_string(), None), ("other".to_string(), None)]),
+    ("/path1".to_string(), vec![("path1".to_string(), None), ("other".to_string(), None)])
+  ]));
+  expect!(dispatcher.match_paths(&resource("/path12"))).to(be_equal_to(vec![
+    ("/".to_string(), vec![("path12".to_string(), None)])
+  ]));
+  expect!(dispatcher.match_paths(&resource("/"))).to(be_equal_to(vec![
+    ("/".to_string(), vec![])
+  ]));
+
+  expect!(dispatcher.match_paths(&resource("/path2"))).to(be_equal_to(vec![
+    ("/".to_string(), vec![("path2".to_string(), None)]),
+    ("/path2".to_string(), vec![("path2".to_string(), None)]),
+  ]));
+  expect!(dispatcher.match_paths(&resource("/path2/1000"))).to(be_equal_to(vec![
+    ("/".to_string(), vec![("path2".to_string(), None), ("1000".to_string(), None)]),
+    ("/path2".to_string(), vec![("path2".to_string(), None), ("1000".to_string(), None)]),
+    ("/path2/{id}".to_string(), vec![("path2".to_string(), None), ("1000".to_string(), Some("id".to_string()))])
+  ]));
+  expect!(dispatcher.match_paths(&resource("/path2/1000/path3"))).to(be_equal_to(vec![
+    ("/".to_string(), vec![("path2".to_string(), None), ("1000".to_string(), None), ("path3".to_string(), None)]),
+    ("/path2".to_string(), vec![("path2".to_string(), None), ("1000".to_string(), None), ("path3".to_string(), None)]),
+    ("/path2/{id}".to_string(), vec![("path2".to_string(), None), ("1000".to_string(), Some("id".to_string())), ("path3".to_string(), None)]),
+    ("/path2/{id}/path3".to_string(), vec![("path2".to_string(), None), ("1000".to_string(), Some("id".to_string())), ("path3".to_string(), None)])
+  ]));
+  expect!(dispatcher.match_paths(&resource("/path2/1000/other"))).to(be_equal_to(vec![
+    ("/".to_string(), vec![("path2".to_string(), None), ("1000".to_string(), None), ("other".to_string(), None)]),
+    ("/path2".to_string(), vec![("path2".to_string(), None), ("1000".to_string(), None), ("other".to_string(), None)]),
+    ("/path2/{id}".to_string(), vec![("path2".to_string(), None), ("1000".to_string(), Some("id".to_string())), ("other".to_string(), None)])
+  ]));
 }
 
 #[test]
@@ -79,42 +125,54 @@ async fn execute_state_machine_returns_503_if_resource_indicates_not_available()
 #[test]
 fn update_paths_for_resource_test_with_root() {
   let mut request = WebmachineRequest::default();
-  update_paths_for_resource(&mut request, "/");
-  expect(request.request_path).to(be_equal_to("/".to_string()));
-  expect(request.base_path).to(be_equal_to("/".to_string()));
+  update_paths_for_resource(&mut request, "/", &vec![]);
+  expect!(request.request_path).to(be_equal_to("/".to_string()));
+  expect!(request.base_path).to(be_equal_to("/".to_string()));
 }
 
 #[test]
 fn update_paths_for_resource_test_with_subpath() {
   let mut request = WebmachineRequest {
     request_path: "/subpath".to_string(),
-    ..WebmachineRequest::default()
+    .. WebmachineRequest::default()
   };
-  update_paths_for_resource(&mut request, "/");
-  expect(request.request_path).to(be_equal_to("/subpath".to_string()));
-  expect(request.base_path).to(be_equal_to("/".to_string()));
+  update_paths_for_resource(&mut request, "/", &vec![]);
+  expect!(request.request_path).to(be_equal_to("/subpath".to_string()));
+  expect!(request.base_path).to(be_equal_to("/".to_string()));
 }
 
 #[test]
 fn update_paths_for_resource_on_path() {
   let mut request = WebmachineRequest {
     request_path: "/path".to_string(),
-    ..WebmachineRequest::default()
+    .. WebmachineRequest::default()
   };
-  update_paths_for_resource(&mut request, "/path");
-  expect(request.request_path).to(be_equal_to("/".to_string()));
-  expect(request.base_path).to(be_equal_to("/path".to_string()));
+  update_paths_for_resource(&mut request, "/path", &vec![]);
+  expect!(request.request_path).to(be_equal_to("/".to_string()));
+  expect!(request.base_path).to(be_equal_to("/path".to_string()));
 }
 
 #[test]
 fn update_paths_for_resource_on_path_with_subpath() {
   let mut request = WebmachineRequest {
     request_path: "/path/path2".to_string(),
-    ..WebmachineRequest::default()
+    .. WebmachineRequest::default()
   };
-  update_paths_for_resource(&mut request, "/path");
-  expect(request.request_path).to(be_equal_to("/path2".to_string()));
-  expect(request.base_path).to(be_equal_to("/path".to_string()));
+  update_paths_for_resource(&mut request, "/path", &vec![]);
+  expect!(request.request_path).to(be_equal_to("/path2".to_string()));
+  expect!(request.base_path).to(be_equal_to("/path".to_string()));
+}
+
+#[test]
+fn update_paths_for_resource_on_path_with_mapped_parts() {
+  let mut request = WebmachineRequest {
+    request_path: "/path/1000".to_string(),
+    .. WebmachineRequest::default()
+  };
+  update_paths_for_resource(&mut request, "/path", &vec![("1000".to_string(), Some("id".to_string()))]);
+  expect!(request.request_path).to(be_equal_to("/1000".to_string()));
+  expect!(request.base_path).to(be_equal_to("/path".to_string()));
+  expect!(request.path_vars).to(be_equal_to(hashmap!{ "id".to_string() => "1000".to_string() }));
 }
 
 #[tokio::test]

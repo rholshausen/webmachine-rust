@@ -17,6 +17,8 @@ pub struct WebmachineRequest {
   pub request_path: String,
   /// Resource base path
   pub base_path: String,
+  /// Path parts mapped to any variables (i.e. parts like /{id} will have id mapped)
+  pub path_vars: HashMap<String, String>,
   /// Request method
   pub method: String,
   /// Request headers
@@ -33,6 +35,7 @@ impl Default for WebmachineRequest {
     WebmachineRequest {
       request_path: "/".to_string(),
       base_path: "/".to_string(),
+      path_vars: Default::default(),
       method: "GET".to_string(),
       headers: HashMap::new(),
       body: None,
