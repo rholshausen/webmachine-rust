@@ -294,7 +294,7 @@ pub trait Resource {
 
   /// Does the resource exist? Returning a false value will result in a '404 Not Found' response
   /// unless it is a PUT or POST. Defaults to true.
-  fn resource_exists(&self, _context: &mut WebmachineContext) -> bool {
+  async fn resource_exists(&self, _context: &mut WebmachineContext) -> bool {
     true
   }
 
@@ -686,7 +686,7 @@ impl Resource for WebmachineResource {
       .collect_vec()
   }
 
-  fn resource_exists(&self, context: &mut WebmachineContext) -> bool {
+  async fn resource_exists(&self, context: &mut WebmachineContext) -> bool {
     (self.resource_exists)(context, self)
   }
 
@@ -1068,7 +1068,7 @@ async fn execute_decision(
       None => DecisionResult::False("acceptable encoding is not available".to_string())
     },
     Decision::G7ResourceExists => {
-      DecisionResult::wrap(resource.resource_exists(context), "resource exists")
+      DecisionResult::wrap(resource.resource_exists(context).await, "resource exists")
     },
     Decision::G8IfMatchExists => DecisionResult::wrap(context.request.has_header("If-Match"),
                                                       "match exists"),
