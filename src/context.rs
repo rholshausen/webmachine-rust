@@ -1,8 +1,10 @@
 //! The `context` module encapsulates the context of the environment that the webmachine is
 //! executing in. Basically wraps the request and response.
 
+use std::any::Any;
 use std::collections::{BTreeMap, HashMap};
-use std::fmt::Display;
+use std::fmt::{Debug, Display};
+use std::sync::Arc;
 
 use bytes::Bytes;
 use chrono::{DateTime, FixedOffset};
@@ -222,8 +224,11 @@ impl WebmachineResponse {
     }
 }
 
+/// Trait to store arbitrary values
+pub trait MetaDataThing: Any + Debug {}
+
 /// Values that can be stored as metadata
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 pub enum MetaDataValue {
   /// No Value,
   Empty,
@@ -232,7 +237,51 @@ pub enum MetaDataValue {
   /// Unsigned integer
   UInteger(u64),
   /// Signed integer
-  Integer(i64)
+  Integer(i64),
+  /// Boxed Any
+  Anything(Arc<dyn MetaDataThing + Send + Sync>)
+}
+
+impl MetaDataValue {
+  /// If the metadata value is empty
+  pub fn is_empty(&self) -> bool {
+    match self {
+      MetaDataValue::Empty => true,
+      _ => false
+    }
+  }
+
+  /// If the metadata value is a String
+  pub fn as_string(&self) -> Option<String> {
+    match self {
+      MetaDataValue::String(s) => Some(s.clone()),
+      _ => None
+    }
+  }
+
+  /// If the metadata value is an unsigned integer
+  pub fn as_uint(&self) -> Option<u64> {
+    match self {
+      MetaDataValue::UInteger(u) => Some(*u),
+      _ => None
+    }
+  }
+
+  /// If the metadata value is a signed integer
+  pub fn as_int(&self) -> Option<i64> {
+    match self {
+      MetaDataValue::Integer(i) => Some(*i),
+      _ => None
+    }
+  }
+
+  /// If the metadata value is an Anything
+  pub fn as_anything(&self) -> Option<&(dyn Any + Send + Sync)> {
+    match self {
+      MetaDataValue::Anything(thing) => Some(thing.as_ref()),
+      _ => None
+    }
+  }
 }
 
 impl Display for MetaDataValue {
@@ -241,7 +290,8 @@ impl Display for MetaDataValue {
       MetaDataValue::String(s) => write!(f, "{}", s.as_str()),
       MetaDataValue::UInteger(u) => write!(f, "{}", *u),
       MetaDataValue::Integer(i) => write!(f, "{}", *i),
-      MetaDataValue::Empty => Ok(())
+      MetaDataValue::Empty => Ok(()),
+      MetaDataValue::Anything(thing) => write!(f, "any({:?})", thing)
     }
   }
 }
@@ -301,7 +351,7 @@ impl From<i64> for MetaDataValue {
 }
 
 /// Main context struct that holds the request and response.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 pub struct WebmachineContext {
   /// Request that the webmachine is executing against
   pub request: WebmachineRequest,
