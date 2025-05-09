@@ -32,12 +32,12 @@ fn resource(path: &str) -> WebmachineRequest {
 fn path_matcher_test() {
   let dispatcher = WebmachineDispatcher {
     routes: btreemap! {
-      "/" => WebmachineResource::default(),
-      "/path1" => WebmachineResource::default(),
-      "/path2" => WebmachineResource::default(),
-      "/path1/path3" => WebmachineResource::default(),
-      "/path2/{id}" => WebmachineResource::default(),
-      "/path2/{id}/path3" => WebmachineResource::default()
+      "/" => WebmachineDispatcher::box_resource(WebmachineResource::default()),
+      "/path1" => WebmachineDispatcher::box_resource(WebmachineResource::default()),
+      "/path2" => WebmachineDispatcher::box_resource(WebmachineResource::default()),
+      "/path1/path3" => WebmachineDispatcher::box_resource(WebmachineResource::default()),
+      "/path2/{id}" => WebmachineDispatcher::box_resource(WebmachineResource::default()),
+      "/path2/{id}/path3" => WebmachineDispatcher::box_resource(WebmachineResource::default())
     }
   };
 
@@ -105,7 +105,7 @@ fn sanitise_path_test() {
 async fn dispatcher_returns_404_if_there_is_no_matching_resource() {
   let mut context = WebmachineContext::default();
   let displatcher = WebmachineDispatcher {
-    routes: btreemap! { "/some/path" => WebmachineResource::default() }
+    routes: btreemap! { "/some/path" => WebmachineDispatcher::box_resource(WebmachineResource::default()) }
   };
   displatcher.dispatch_to_resource(&mut context).await;
   expect(context.response.status).to(be_equal_to(404));

@@ -10,12 +10,12 @@ It is basically a HTTP toolkit for building HTTP-friendly applications using the
 Webmachine-rust works with Hyper and sits between the Hyper Handler and your application code. It provides a resource struct
 with callbacks to handle the decisions required as the state machine is executed against the request with the following sequence.
 
-REQUEST -> Hyper Handler -> WebmachineDispatcher -> WebmachineResource -> Your application code -> WebmachineResponse -> Hyper -> RESPONSE
+REQUEST -> Hyper Handler -> WebmachineDispatcher -> Resource -> Your application code -> WebmachineResponse -> Hyper -> RESPONSE
 
 ## Features
 
 - Handles the hard parts of content negotiation, conditional requests, and response codes for you.
-- Provides a resource struct with points of extension to let you describe what is relevant about your particular resource.
+- Provides a resource trait and struct with points of extension to let you describe what is relevant about your particular resource.
 
 ## Missing Features
 
@@ -30,14 +30,19 @@ This implementation has the following deficiencies:
 
 - Automatically decoding request bodies and encoding response bodies.
 - No easy mechanism to generate bodies with different content types (e.g. JSON vs. XML).
-- No easy mechanism for handling sub-paths in a resource.
 - Dynamically determining the methods allowed on the resource.
 
 ## Getting started with Hyper
 
 Follow the getting started documentation from the Hyper crate to setup a Hyper service for your server.
-You need to define a WebmachineDispatcher that maps resource paths to your webmachine resources (WebmachineResource).
-Each WebmachineResource defines all the callbacks (via Closures) and values required to implement a resource.
+
+There are two ways of using this crate. You can either use the `WebmachineResource` struct and add callbacks
+for the state you need to modify, or you can create your own resource structs and implement the
+`Resource` trait.
+
+You need to define a WebmachineDispatcher that maps resource paths to your webmachine resources
+(WebmachineResource or structs that implement Resource). WebmachineResource defines all the callbacks
+(via Closures) and values required to implement a resource.
 
 Note: This example uses the maplit crate to provide the `btreemap` macro and the log crate for the logging macros.
 
@@ -70,7 +75,7 @@ Note: This example uses the maplit crate to provide the `btreemap` macro and the
    // use it in the loop below.
    let dispatcher = Arc::new(WebmachineDispatcher {
        routes: btreemap!{
-          "/myresource" => WebmachineResource {
+          "/myresource" => WebmachineDispatcher::box_resource(WebmachineResource {
             // Methods allowed on this resource
             allowed_methods: owned_vec(&["OPTIONS", "GET", "HEAD", "POST"]),
             // if the resource exists callback
@@ -86,7 +91,7 @@ Note: This example uses the maplit crate to provide the `btreemap` macro and the
             process_post: async_callback(|_, _|  /* Handle the post here */ ready(Ok(true)).boxed() ),
             // default everything else
             .. WebmachineResource::default()
-          }
+          })
       }
    });
 
@@ -1495,7 +1500,7 @@ fn generate_http_response(context: &WebmachineContext) -> http::Result<Response<
 /// The main hyper dispatcher
 pub struct WebmachineDispatcher {
   /// Map of routes to webmachine resources
-  pub routes: BTreeMap<&'static str, WebmachineResource>
+  pub routes: BTreeMap<&'static str, Box<dyn Resource + Send + Sync>>
 }
 
 impl WebmachineDispatcher {
@@ -1524,8 +1529,9 @@ impl WebmachineDispatcher {
       .collect()
   }
 
-  fn lookup_resource(&self, path: &str) -> Option<&WebmachineResource> {
+  fn lookup_resource(&self, path: &str) -> Option<&(dyn Resource + Send + Sync)> {
     self.routes.get(path)
+      .map(|resource| resource.as_ref())
   }
 
   /// Dispatches to the matching webmachine resource. If there is no matching resource, returns
@@ -1548,6 +1554,11 @@ impl WebmachineDispatcher {
       },
       None => context.response.status = 404
     };
+  }
+
+  /// Convenience function to box a resource
+  pub fn box_resource<R: Resource + Send + Sync + 'static>(resource: R) -> Box<dyn Resource + Send + Sync> {
+    Box::new(resource)
   }
 }
 
