@@ -197,7 +197,7 @@ impl WebmachineResponse {
     }
 
     /// Adds standard CORS headers to the response
-    pub fn add_cors_headers(&mut self, allowed_methods: &Vec<String>) {
+    pub fn add_cors_headers(&mut self, allowed_methods: &[&str]) {
       let cors_headers = WebmachineResponse::cors_headers(allowed_methods);
       for (k, v) in cors_headers {
         self.add_header(k.as_str(), v.iter().map(HeaderValue::basic).collect());
@@ -205,10 +205,10 @@ impl WebmachineResponse {
     }
 
     /// Returns a HashMap of standard CORS headers
-    pub fn cors_headers(allowed_methods: &Vec<String>) -> HashMap<String, Vec<String>> {
+    pub fn cors_headers(allowed_methods: &[&str]) -> HashMap<String, Vec<String>> {
       hashmap!{
         "Access-Control-Allow-Origin".to_string() => vec!["*".to_string()],
-        "Access-Control-Allow-Methods".to_string() => allowed_methods.clone(),
+        "Access-Control-Allow-Methods".to_string() => allowed_methods.iter().map(|v| v.to_string()).collect(),
         "Access-Control-Allow-Headers".to_string() => vec!["Content-Type".to_string()]
       }
     }

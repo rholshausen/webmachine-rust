@@ -211,6 +211,13 @@ impl PartialEq<HeaderValue> for HeaderValue {
     }
 }
 
+impl PartialEq<&HeaderValue> for HeaderValue {
+  fn eq(&self, other: &&HeaderValue) -> bool {
+    self == *other
+  }
+}
+
+
 impl PartialEq<String> for HeaderValue {
     fn eq(&self, other: &String) -> bool {
         self.value == *other

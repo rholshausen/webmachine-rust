@@ -116,7 +116,7 @@ async fn execute_state_machine_returns_503_if_resource_indicates_not_available()
   let mut context = WebmachineContext::default();
   let resource = WebmachineResource {
     available: callback(|_, _| { false }),
-    ..WebmachineResource::default()
+    .. WebmachineResource::default()
   };
   execute_state_machine(&mut context, &resource).await;
   expect(context.response.status).to(be_equal_to(503));
@@ -549,13 +549,13 @@ async fn execute_state_machine_sets_the_vary_header_if_the_resource_has_variance
     variances: owned_vec(&["HEADER-A", "HEADER-B"]),
     ..WebmachineResource::default()
   };
+
   execute_state_machine(&mut context, &resource).await;
   finalise_response(&mut context, &resource).await;
-  expect(context.response.status).to(be_equal_to(200));
-  expect(context.response.headers).to(be_equal_to(btreemap! {
-    "Content-Type".to_string() => vec![h!("application/json;charset=ISO-8859-1")],
-    "Vary".to_string() => vec![h!("HEADER-A"), h!("HEADER-B")]
-  }));
+
+  expect!(context.response.status).to(be_equal_to(200));
+  expect!(context.response.headers.get("Content-Type")).to(be_some().value(&vec![h!("application/json;charset=ISO-8859-1")]));
+  expect!(context.response.headers.get("Vary")).to(be_some().value(&vec![h!("HEADER-A"), h!("HEADER-B")]));
 }
 
 #[tokio::test]
