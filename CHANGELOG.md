@@ -1,5 +1,20 @@
 
 
+# 0.6.0 - Support async resource methods + resource trait
+
+* fb55351 - chore: Update release script (Ronald Holshausen, Mon May 12 10:49:50 2025 +1000)
+* 0d9bc0c - chore: Update macos runners to latest (Ronald Holshausen, Mon May 12 09:27:01 2025 +1000)
+* d4e99be - feat: Add support to store anything the running context (Ronald Holshausen, Fri May 9 16:39:31 2025 +1000)
+* 8370e01 - feat: Make resource_exists async as it may need to access async resources (Ronald Holshausen, Fri May 9 16:39:01 2025 +1000)
+* cc81cb9 - feat: Update Dispatcher to use the Resource trait (Ronald Holshausen, Fri May 9 13:20:07 2025 +1000)
+* 3a8879e - feat: Add a Resource trait for Webmachine resources (Ronald Holshausen, Fri May 9 12:20:04 2025 +1000)
+* eab3bf4 - feat: Support variables on resource paths (Ronald Holshausen, Thu May 8 17:41:36 2025 +1000)
+* f9929bf - fix: When comparing content-type values, ignore the attributes (Ronald Holshausen, Tue May 6 15:24:03 2025 +1000)
+* c17fb37 - feat: Make process_post async (Ronald Holshausen, Tue May 6 09:23:52 2025 +1000)
+* 18d9ef4 - feat: Make finalise_response, dispatch_to_resource and render_response functions async (Ronald Holshausen, Mon May 5 16:05:48 2025 +1000)
+* 3107974 - chore: Update to 2024 Rust edition (Ronald Holshausen, Mon May 5 10:43:07 2025 +1000)
+* f2157a6 - bump version to 0.5.1 (Ronald Holshausen, Fri Jun 28 15:14:23 2024 +1000)
+
 # 0.5.0 - Refactor: simplify things by removing all references, lifetimes, arcs and mutexes
 
 * c43fb7d - feat: Implement Default and From for MetaDataValue (Ronald Holshausen, Fri Jun 28 15:10:50 2024 +1000)
