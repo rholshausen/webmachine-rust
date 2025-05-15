@@ -126,7 +126,7 @@ use std::collections::{BTreeMap, HashMap};
 use std::fmt::{Debug, Formatter};
 use std::future::ready;
 use std::pin::Pin;
-
+use std::time::SystemTime;
 use async_trait::async_trait;
 use bytes::Bytes;
 use chrono::{DateTime, FixedOffset, Utc};
@@ -1485,6 +1485,17 @@ async fn finalise_response(context: &mut WebmachineContext, resource: &(dyn Reso
   resource.finish_request(context);
   resource.finalise_response(context);
 
+  if let Ok(duration) = context.start_time.elapsed() {
+    context.response.add_header("Server-Timing", vec![HeaderValue {
+      value: "response".to_string(),
+      params: hashmap!{
+        "desc".to_string() => "Total Response Time".to_string(),
+        "dur".to_string() => format!("{:?}", duration)
+      },
+      quote: true
+    }])
+  }
+
   let body_size = context.response.body.as_ref().map(|bytes| bytes.len()).unwrap_or_default();
   debug!(status = context.response.status, headers = ?context.response.headers, body_size, "Final response");
 }
@@ -1518,10 +1529,12 @@ impl WebmachineDispatcher {
   }
 
   async fn context_from_http_request(&self, req: Request<Incoming>) -> WebmachineContext {
+    let now = SystemTime::now();
     let request = request_from_http_request(req).await;
     WebmachineContext {
       request,
       response: WebmachineResponse::default(),
+      start_time: now,
       .. WebmachineContext::default()
     }
   }

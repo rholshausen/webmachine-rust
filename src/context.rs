@@ -5,7 +5,7 @@ use std::any::Any;
 use std::collections::{BTreeMap, HashMap};
 use std::fmt::{Debug, Display};
 use std::sync::Arc;
-
+use std::time::SystemTime;
 use bytes::Bytes;
 use chrono::{DateTime, FixedOffset};
 use maplit::hashmap;
@@ -374,7 +374,9 @@ pub struct WebmachineContext {
   /// If a new resource was created
   pub new_resource: bool,
   /// General store of metadata. You can use this to store attributes as the webmachine executes.
-  pub metadata: HashMap<String, MetaDataValue>
+  pub metadata: HashMap<String, MetaDataValue>,
+  /// Start time instant when the context was created
+  pub start_time: SystemTime
 }
 
 impl WebmachineContext {
@@ -400,7 +402,8 @@ impl Default for WebmachineContext {
       if_modified_since: None,
       redirect: false,
       new_resource: false,
-      metadata: HashMap::new()
+      metadata: HashMap::new(),
+      start_time: SystemTime::now()
     }
   }
 }
