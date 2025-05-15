@@ -1,5 +1,14 @@
 
 
+# 0.6.1 - Small fixes
+
+* 654cb97 - feat: Add Server-Timing response header (Ronald Holshausen, Thu May 15 15:49:22 2025 +1000)
+* 7749919 - chore: Add incoming request and dispatch debug statements (Ronald Holshausen, Thu May 15 15:05:08 2025 +1000)
+* bd62fa3 - feat: Add convenience method to downcast a metadata anything value (Ronald Holshausen, Thu May 15 11:17:55 2025 +1000)
+* 2cfa560 - chore: do not dump the full response on every request (Ronald Holshausen, Thu May 15 10:14:08 2025 +1000)
+* a316132 - fix: Support wild card with acceptable_content_types (Ronald Holshausen, Thu May 15 10:04:35 2025 +1000)
+* 5989849 - bump version to 0.6.1 (Ronald Holshausen, Mon May 12 10:53:50 2025 +1000)
+
 # 0.6.0 - Support async resource methods + resource trait
 
 * fb55351 - chore: Update release script (Ronald Holshausen, Mon May 12 10:49:50 2025 +1000)
