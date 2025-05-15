@@ -123,6 +123,7 @@ For an example of a project using this crate, have a look at the [Pact Mock Serv
 #![warn(missing_docs)]
 
 use std::collections::{BTreeMap, HashMap};
+use std::fmt::{Debug, Formatter};
 use std::future::ready;
 use std::pin::Pin;
 
@@ -173,7 +174,7 @@ pub fn owned_vec(strings: &[&str]) -> Vec<String> {
 
 /// All webmachine resources implement this trait
 #[async_trait]
-pub trait Resource {
+pub trait Resource: Debug {
   /// This is called just before the final response is constructed and sent. It allows the resource
   /// an opportunity to modify the response after the webmachine has executed.
   fn finalise_response(&self, _context: &mut WebmachineContext) {}
@@ -585,6 +586,12 @@ impl Default for WebmachineResource {
       expires: callback(none_fn),
       render_response: async_callback(|_, _| ready(Ok(None)).boxed())
     }
+  }
+}
+
+impl Debug for WebmachineResource {
+  fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+    write!(f, "WebmachineResource{{}}")
   }
 }
 
@@ -1535,6 +1542,10 @@ impl WebmachineDispatcher {
   /// Dispatches to the matching webmachine resource. If there is no matching resource, returns
   /// 404 Not Found response
   pub async fn dispatch_to_resource(&self, context: &mut WebmachineContext) {
+    let body_size = context.request.body.as_ref().map(|bytes| bytes.len()).unwrap_or_default();
+    debug!(method = context.request.method, request_path = context.request.request_path,
+      headers = ?context.request.headers, query = ?context.request.query, body_size,
+      "Incoming request");
     let matching_paths = self.match_paths(&context.request);
     let ordered_by_length = matching_paths.iter()
       .cloned()
@@ -1544,6 +1555,7 @@ impl WebmachineDispatcher {
       Some((path, parts)) => {
         update_paths_for_resource(&mut context.request, path, parts);
         if let Some(resource) = self.lookup_resource(path) {
+          trace!("Dispatching to resource {:?}", resource);
           execute_state_machine(context, resource).await;
           finalise_response(context, resource).await;
         } else {
