@@ -377,6 +377,15 @@ pub struct WebmachineContext {
   pub metadata: HashMap<String, MetaDataValue>
 }
 
+impl WebmachineContext {
+  /// Convenience method to downcast a metadata anything value
+  pub fn downcast_metadata_value<'a, T: 'static>(&'a self, key: &'a str) -> Option<&'a T> {
+    self.metadata.get(key)
+      .and_then(|value| value.as_anything())
+      .and_then(|value| value.downcast_ref())
+  }
+}
+
 impl Default for WebmachineContext {
   /// Creates a default context
   fn default() -> WebmachineContext {
