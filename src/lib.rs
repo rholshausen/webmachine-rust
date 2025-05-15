@@ -1478,7 +1478,8 @@ async fn finalise_response(context: &mut WebmachineContext, resource: &(dyn Reso
   resource.finish_request(context);
   resource.finalise_response(context);
 
-  debug!("Final response: {:?}", context.response);
+  let body_size = context.response.body.as_ref().map(|bytes| bytes.len()).unwrap_or_default();
+  debug!(status = context.response.status, headers = ?context.response.headers, body_size, "Final response");
 }
 
 fn generate_http_response(context: &WebmachineContext) -> http::Result<Response<Full<Bytes>>> {
