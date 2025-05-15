@@ -145,6 +145,8 @@ fn media_type_matches_test() {
   expect!(media_type.matches(&MediaType { main: "application".to_string(), sub: "*".to_string(), weight: 1.0 })).to(be_equal_to(MediaTypeMatch::SubStar));
   expect!(media_type.matches(&MediaType { main: "*".to_string(), sub: "*".to_string(), weight: 1.0 })).to(be_equal_to(MediaTypeMatch::Star));
   expect!(media_type.matches(&MediaType { main: "application".to_string(), sub: "application".to_string(), weight: 1.0 })).to(be_equal_to(MediaTypeMatch::None));
+  expect!(media_type.matches(&MediaType { main: "*".to_string(), sub: "json".to_string(), weight: 1.0 })).to(be_equal_to(MediaTypeMatch::Star));
+  expect!(media_type.matches(&MediaType { main: "*".to_string(), sub: "xml".to_string(), weight: 1.0 })).to(be_equal_to(MediaTypeMatch::None));
 }
 
 #[test]

@@ -140,7 +140,7 @@ use tracing::{debug, error, trace};
 
 use context::{WebmachineContext, WebmachineRequest, WebmachineResponse};
 use headers::HeaderValue;
-
+use crate::content_negotiation::acceptable_content_type;
 use crate::paths::map_path;
 
 #[macro_use] pub mod headers;
@@ -234,6 +234,7 @@ pub trait Resource {
 
   /// The list of acceptable content types. Defaults to 'application/json'. If the content type
   /// of the request is not in this list, a '415 Unsupported Media Type' response is returned.
+  /// Wild cards can be used, like `*/*`, `type/*` or `*/sub-type`.
   fn acceptable_content_types(&self, _context: &mut WebmachineContext) -> Vec<&str> {
     vec!["application/json"]
   }
@@ -431,6 +432,7 @@ pub struct WebmachineResource {
   pub unsupported_content_headers: WebmachineCallback<bool>,
   /// The list of acceptable content types. Defaults to 'application/json'. If the content type
   /// of the request is not in this list, a '415 Unsupported Media Type' response is returned.
+  /// Wild cards can be used, like `*/*`, `type/*` or `*/sub-type`.
   pub acceptable_content_types: Vec<String>,
   /// If the entity length on PUT or POST is invalid, this should return false, which will result
   /// in a '413 Request Entity Too Large' response. Defaults to true.
@@ -1011,13 +1013,8 @@ async fn execute_decision(
       DecisionResult::wrap(resource.unsupported_content_headers(context), "unsupported content headers")
     },
     Decision::B5UnknownContentType => {
-      DecisionResult::wrap(context.request.is_put_or_post() && resource.acceptable_content_types(context)
-        .iter()
-        .find(|ct| {
-          let ct = HeaderValue::parse_string(ct);
-          context.request.content_type().value.to_lowercase() == ct.value.to_lowercase()
-        })
-        .is_none(), "acceptable content types")
+      DecisionResult::wrap(context.request.is_put_or_post() && !acceptable_content_type(resource, context),
+        "acceptable content types")
     },
     Decision::B4RequestEntityTooLarge => {
       DecisionResult::wrap(context.request.is_put_or_post() && !resource.valid_entity_length(context),

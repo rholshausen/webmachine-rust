@@ -6,7 +6,7 @@ use std::cmp::Ordering;
 use itertools::Itertools;
 
 use crate::Resource;
-use crate::context::WebmachineRequest;
+use crate::context::{WebmachineContext, WebmachineRequest};
 use crate::headers::HeaderValue;
 
 /// Enum to represent a match with media types
@@ -16,10 +16,20 @@ pub enum MediaTypeMatch {
     Full,
     /// Match where the sub-type was a wild card
     SubStar,
-    /// Full whild card match (type and sub-type)
+    /// Full wild card match (type and sub-type)
     Star,
     /// Does not match
     None
+}
+
+impl MediaTypeMatch {
+  /// If the match is a full or partial match
+  pub fn is_match(&self) -> bool {
+    match self {
+      MediaTypeMatch::None => false,
+      _ => true
+    }
+  }
 }
 
 /// Struct to represent a media type
@@ -74,15 +84,19 @@ impl MediaType {
 
     /// If this media type matches the other media type
     pub fn matches(&self, other: &MediaType) -> MediaTypeMatch {
-        if other.main == "*" {
-            MediaTypeMatch::Star
-        } else if self.main == other.main && other.sub == "*" {
-            MediaTypeMatch::SubStar
-        } else if self.main == other.main && self.sub == other.sub {
-            MediaTypeMatch::Full
+      if other.main == "*" {
+        if other.sub == "*" || self.sub == other.sub {
+          MediaTypeMatch::Star
         } else {
-            MediaTypeMatch::None
+          MediaTypeMatch::None
         }
+      } else if self.main == other.main && other.sub == "*" {
+          MediaTypeMatch::SubStar
+      } else if self.main == other.main && self.sub == other.sub {
+          MediaTypeMatch::Full
+      } else {
+          MediaTypeMatch::None
+      }
     }
 
     /// Converts this media type into a string
@@ -135,6 +149,20 @@ pub fn matching_content_type(resource: &(dyn Resource + Send + Sync), request: &
   } else {
     resource.produces().first().map(|s| s.to_string())
   }
+}
+
+/// Determines if the media type accepted by the resource matches the media type
+/// provided by the client. Returns the match if there is one.
+pub fn acceptable_content_type(
+  resource: &(dyn Resource + Send + Sync),
+  context: &mut WebmachineContext
+) -> bool {
+  let ct = context.request.content_type().as_media_type();
+  resource.acceptable_content_types(context)
+    .iter()
+    .any(|acceptable_ct| {
+      ct.matches(&MediaType::parse_string(acceptable_ct)).is_match()
+    })
 }
 
 /// Struct to represent a media language

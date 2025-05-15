@@ -323,7 +323,6 @@ async fn execute_state_machine_handles_content_types_with_parameters() {
     ..WebmachineResource::default()
   };
   execute_state_machine(&mut context, &resource).await;
-  dbg!(&context);
   expect!(context.response.status).to_not(be_equal_to(415));
 }
 
