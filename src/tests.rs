@@ -2,6 +2,8 @@ use std::collections::HashMap;
 
 use chrono::*;
 use expectest::prelude::*;
+use http::header::{CONTENT_LENGTH, HOST};
+use http_body_util::Empty;
 use maplit::btreemap;
 
 use super::*;
@@ -20,6 +22,7 @@ fn resource(path: &str) -> WebmachineRequest {
   WebmachineRequest {
     request_path: path.to_string(),
     base_path: "/".to_string(),
+    sub_path: None,
     path_vars: Default::default(),
     method: "GET".to_string(),
     headers: HashMap::new(),
@@ -128,6 +131,7 @@ fn update_paths_for_resource_test_with_root() {
   update_paths_for_resource(&mut request, "/", &vec![]);
   expect!(request.request_path).to(be_equal_to("/".to_string()));
   expect!(request.base_path).to(be_equal_to("/".to_string()));
+  expect!(request.sub_path).to(be_none());
 }
 
 #[test]
@@ -139,6 +143,7 @@ fn update_paths_for_resource_test_with_subpath() {
   update_paths_for_resource(&mut request, "/", &vec![]);
   expect!(request.request_path).to(be_equal_to("/subpath".to_string()));
   expect!(request.base_path).to(be_equal_to("/".to_string()));
+  expect!(request.sub_path).to(be_none());
 }
 
 #[test]
@@ -147,9 +152,12 @@ fn update_paths_for_resource_on_path() {
     request_path: "/path".to_string(),
     .. WebmachineRequest::default()
   };
-  update_paths_for_resource(&mut request, "/path", &vec![]);
-  expect!(request.request_path).to(be_equal_to("/".to_string()));
+  update_paths_for_resource(&mut request, "/path", &vec![
+    ("path".to_string(), None)
+  ]);
+  expect!(request.request_path).to(be_equal_to("/path".to_string()));
   expect!(request.base_path).to(be_equal_to("/path".to_string()));
+  expect!(request.sub_path).to(be_none());
 }
 
 #[test]
@@ -158,9 +166,13 @@ fn update_paths_for_resource_on_path_with_subpath() {
     request_path: "/path/path2".to_string(),
     .. WebmachineRequest::default()
   };
-  update_paths_for_resource(&mut request, "/path", &vec![]);
-  expect!(request.request_path).to(be_equal_to("/path2".to_string()));
+  update_paths_for_resource(&mut request, "/path", &vec![
+    ("path".to_string(), None),
+    ("path2".to_string(), None)
+  ]);
+  expect!(request.request_path).to(be_equal_to("/path/path2".to_string()));
   expect!(request.base_path).to(be_equal_to("/path".to_string()));
+  expect!(request.sub_path).to(be_some().value("path2"));
 }
 
 #[test]
@@ -169,9 +181,30 @@ fn update_paths_for_resource_on_path_with_mapped_parts() {
     request_path: "/path/1000".to_string(),
     .. WebmachineRequest::default()
   };
-  update_paths_for_resource(&mut request, "/path", &vec![("1000".to_string(), Some("id".to_string()))]);
-  expect!(request.request_path).to(be_equal_to("/1000".to_string()));
-  expect!(request.base_path).to(be_equal_to("/path".to_string()));
+  update_paths_for_resource(&mut request, "/path/{id}", &vec![
+    ("path".to_string(), None),
+    ("1000".to_string(), Some("id".to_string()))
+  ]);
+  expect!(request.request_path).to(be_equal_to("/path/1000".to_string()));
+  expect!(request.base_path).to(be_equal_to("/path/{id}".to_string()));
+  expect!(request.sub_path).to(be_none());
+  expect!(request.path_vars).to(be_equal_to(hashmap!{ "id".to_string() => "1000".to_string() }));
+}
+
+#[test]
+fn update_paths_for_resource_on_path_with_mapped_parts_and_sub_path() {
+  let mut request = WebmachineRequest {
+    request_path: "/path/1000/other".to_string(),
+    .. WebmachineRequest::default()
+  };
+  update_paths_for_resource(&mut request, "/path/{id}", &vec![
+    ("path".to_string(), None),
+    ("1000".to_string(), Some("id".to_string())),
+    ("other".to_string(), None)
+  ]);
+  expect!(request.request_path).to(be_equal_to("/path/1000/other".to_string()));
+  expect!(request.base_path).to(be_equal_to("/path/{id}".to_string()));
+  expect!(request.sub_path).to(be_some().value("other".to_string()));
   expect!(request.path_vars).to(be_equal_to(hashmap!{ "id".to_string() => "1000".to_string() }));
 }
 
@@ -1298,4 +1331,112 @@ fn parse_query_string_decodes_values() {
     "a".to_string() => vec!["a b c".to_string()]
   };
   expect!(parse_query(&query)).to(be_equal_to(expected));
+}
+
+#[tokio::test]
+async fn request_from_http_request_test() {
+  let body = Full::<Bytes>::from("Hello, World!");
+  let req = Request::builder()
+    .method("PUT")
+    .uri("/path")
+    .header("x-test", "x-test")
+    .header("y-test", "y-test")
+    .body(body)
+    .unwrap();
+
+  let web_machine_request = request_from_http_request(req).await;
+
+  expect!(web_machine_request.request_path).to(be_equal_to("/path"));
+  expect!(web_machine_request.base_path).to(be_equal_to("/"));
+  expect!(web_machine_request.sub_path).to(be_none());
+  expect!(web_machine_request.path_vars).to(be_equal_to(hashmap!{}));
+  expect!(web_machine_request.method).to(be_equal_to("PUT"));
+  expect!(web_machine_request.headers).to(be_equal_to(hashmap!{
+    "x-test".to_string() => vec![HeaderValue::parse_string("x-test")],
+    "y-test".to_string() => vec![HeaderValue::parse_string("y-test")]
+  }));
+  expect!(web_machine_request.query).to(be_equal_to(hashmap!{}));
+  expect!(web_machine_request.body).to(be_some().value(Bytes::from("Hello, World!")));
+}
+
+#[tokio::test]
+async fn request_from_http_request_test_with_query() {
+  let body = Full::<Bytes>::from("Hello, World!");
+  let req = Request::builder()
+    .method("PUT")
+    .uri("/path?q1=a&q2=b")
+    .body(body)
+    .unwrap();
+
+  let web_machine_request = request_from_http_request(req).await;
+
+  expect!(web_machine_request.query).to(be_equal_to(hashmap!{
+    "q1".to_string() => vec!["a".to_string()],
+    "q2".to_string() => vec!["b".to_string()]
+  }));
+}
+
+#[tokio::test]
+async fn request_from_http_request_test_with_no_body() {
+  let body = Empty::<Bytes>::new();
+  let req = Request::builder()
+    .method("PUT")
+    .body(body)
+    .unwrap();
+
+  let web_machine_request = request_from_http_request(req).await;
+
+  expect!(web_machine_request.body).to(be_none());
+}
+
+#[test]
+fn headers_from_http_request_test_default() {
+  let headers = HeaderMap::new();
+  let result = headers_from_http_request(&headers);
+  expect!(result).to(be_equal_to(hashmap!{}));
+}
+
+#[test]
+fn headers_from_http_request_test_simple_case() {
+  let mut headers = HeaderMap::new();
+  headers.insert(HOST, "example.com".parse().unwrap());
+  headers.insert(CONTENT_LENGTH, "123".parse().unwrap());
+
+  let result = headers_from_http_request(&headers);
+
+  expect!(result).to(be_equal_to(hashmap!{
+    "host".to_string() => vec![HeaderValue::parse_string("example.com")],
+    "content-length".to_string() => vec![HeaderValue::parse_string("123")]
+  }));
+}
+
+#[test]
+fn headers_from_http_request_test_multiple_values() {
+  let mut headers = HeaderMap::new();
+  headers.insert("x-test", "hello".parse().unwrap());
+  headers.append("x-test", "goodbye".parse().unwrap());
+
+  let result = headers_from_http_request(&headers);
+
+  expect!(result).to(be_equal_to(hashmap!{
+    "x-test".to_string() => vec![HeaderValue::parse_string("hello"), HeaderValue::parse_string("goodbye")]
+  }));
+}
+
+#[test]
+fn headers_from_http_request_test_known_multi_value_headers() {
+  let mut headers = HeaderMap::new();
+  headers.insert("access-control-allow-methods", "OPTIONS, HEAD".parse().unwrap());
+  headers.append("access-control-allow-methods", "GET, PUT".parse().unwrap());
+
+  let result = headers_from_http_request(&headers);
+
+  expect!(result).to(be_equal_to(hashmap!{
+    "access-control-allow-methods".to_string() => vec![
+      HeaderValue::parse_string("OPTIONS"),
+      HeaderValue::parse_string("HEAD"),
+      HeaderValue::parse_string("GET"),
+      HeaderValue::parse_string("PUT")
+    ]
+  }));
 }

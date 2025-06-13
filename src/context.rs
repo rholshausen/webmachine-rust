@@ -15,10 +15,12 @@ use crate::headers::HeaderValue;
 /// Request that the state machine is executing against
 #[derive(Debug, Clone, PartialEq)]
 pub struct WebmachineRequest {
-  /// Path of the request relative to the resource
+  /// Path of the received request
   pub request_path: String,
-  /// Resource base path
+  /// Resource base path (configured in the dispatcher)
   pub base_path: String,
+  /// Any additional path after the base path
+  pub sub_path: Option<String>,
   /// Path parts mapped to any variables (i.e. parts like /{id} will have id mapped)
   pub path_vars: HashMap<String, String>,
   /// Request method
@@ -37,6 +39,7 @@ impl Default for WebmachineRequest {
     WebmachineRequest {
       request_path: "/".to_string(),
       base_path: "/".to_string(),
+      sub_path: None,
       path_vars: Default::default(),
       method: "GET".to_string(),
       headers: HashMap::new(),

@@ -116,7 +116,6 @@ fn skip_whitespace(chars: &mut Peekable<Chars>) {
     }
 }
 
-
 /// Struct to represent a header value and a map of header value parameters
 #[derive(Debug, Clone, Eq, Default)]
 pub struct HeaderValue {

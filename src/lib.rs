@@ -123,7 +123,7 @@ For an example of a project using this crate, have a look at the [Pact Mock Serv
 #![warn(missing_docs)]
 
 use std::collections::{BTreeMap, HashMap};
-use std::fmt::{Debug, Formatter};
+use std::fmt::{Debug, Display, Formatter};
 use std::future::ready;
 use std::pin::Pin;
 use std::time::SystemTime;
@@ -133,7 +133,7 @@ use chrono::{DateTime, FixedOffset, Utc};
 use futures_util::future::FutureExt;
 use http::{HeaderMap, Request, Response};
 use http_body_util::{BodyExt, Full};
-use hyper::body::Incoming;
+use hyper::body::{Body, Incoming};
 use itertools::Itertools;
 use lazy_static::lazy_static;
 use maplit::hashmap;
@@ -1282,17 +1282,16 @@ fn update_paths_for_resource(
   request.path_vars = mapped_parts.iter()
     .filter_map(|(part, id)| id.as_ref().map(|id| (id.clone(), part.clone())))
     .collect();
-  if request.request_path.len() > base_path.len() {
-    let request_path = request.request_path.clone();
-    let subpath = request_path.split_at(base_path.len()).1;
-    if subpath.starts_with("/") {
-      request.request_path = subpath.to_string();
-    } else {
-      request.request_path = "/".to_owned() + subpath;
-    }
+  let base_parts = base_path.split('/').count() - 1;
+  let sub_parts = mapped_parts.iter()
+    .dropping(base_parts)
+    .map(|(part, _)| part)
+    .collect_vec();
+  request.sub_path = if sub_parts.is_empty() {
+    None
   } else {
-    request.request_path = "/".to_string();
-  }
+    Some(sub_parts.iter().join("/"))
+  };
 }
 
 fn parse_header_values(value: &str) -> Vec<HeaderValue> {
@@ -1304,8 +1303,12 @@ fn parse_header_values(value: &str) -> Vec<HeaderValue> {
 }
 
 fn headers_from_http_request(headers: &HeaderMap<http::HeaderValue>) -> HashMap<String, Vec<HeaderValue>> {
-  headers.iter()
-    .map(|(name, value)| (name.to_string(), parse_header_values(value.to_str().unwrap_or_default())))
+  headers.keys()
+    .map(|key| (key.to_string(), headers.get_all(key)
+      .iter()
+      .flat_map(|value| parse_header_values(value.to_str().unwrap_or_default()))
+      .collect_vec()
+    ))
     .collect()
 }
 
@@ -1379,7 +1382,10 @@ fn parse_query(query: &str) -> HashMap<String, Vec<String>> {
   }
 }
 
-async fn request_from_http_request(req: Request<Incoming>) -> WebmachineRequest {
+async fn request_from_http_request<BODY, E>(req: Request<BODY>) -> WebmachineRequest
+  where BODY: Body<Error = E>,
+        E: Display
+{
   let request_path = req.uri().path().to_string();
   let method = req.method().to_string();
   let query = match req.uri().query() {
@@ -1406,6 +1412,7 @@ async fn request_from_http_request(req: Request<Incoming>) -> WebmachineRequest 
   WebmachineRequest {
     request_path,
     base_path: "/".to_string(),
+    sub_path: None,
     path_vars: Default::default(),
     method,
     headers,
