@@ -1,5 +1,10 @@
 
 
+# 0.6.4 - Bugfix Release
+
+* 7bab093 - fix: Correct the server timings value (Ronald Holshausen, Wed Mar 4 09:33:33 2026 +1100)
+* 95aa2d7 - bump version to 0.6.4 (Ronald Holshausen, Mon Mar 2 14:10:39 2026 +1100)
+
 # 0.6.3 - Maintenance Release
 
 * 6592321 - chore: Update dependencies (Ronald Holshausen, Mon Mar 2 14:08:07 2026 +1100)
