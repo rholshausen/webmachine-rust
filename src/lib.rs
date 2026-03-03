@@ -115,12 +115,68 @@ Note: This example uses the maplit crate to provide the `btreemap` macro and the
  }
  ```
 
+## Using the Resource trait
+
+You can create your own struct that implements the `Resource` trait instead of using `WebmachineResource`. This avoids
+needing to wrap the callbacks.
+
+for instance, the example above can be changed to:
+
+```no_run
+use std::sync::Arc;
+
+use async_trait::async_trait;
+use bytes::Bytes;
+use maplit::btreemap;
+use serde_json::json;
+use webmachine_rust::*;
+use webmachine_rust::context::WebmachineContext;
+
+#[derive(Debug)]
+struct MyResource;
+
+#[async_trait]
+impl Resource for MyResource {
+    fn allowed_methods(&self) -> Vec<&str> {
+        vec!["OPTIONS", "GET", "HEAD", "POST"]
+    }
+
+    async fn resource_exists(&self, _context: &mut WebmachineContext) -> bool {
+        true
+    }
+
+    async fn render_response(&self, _context: &mut WebmachineContext) -> anyhow::Result<Option<Bytes>> {
+        let json_response = json!({
+           "data": [1, 2, 3, 4]
+        });
+        Ok(Some(Bytes::from(json_response.to_string())))
+    }
+
+    async fn process_post(&self, _context: &mut WebmachineContext) -> Result<bool, u16> {
+        Ok(true)
+    }
+}
+
+async fn start_server() -> anyhow::Result<()> {
+    let dispatcher = Arc::new(WebmachineDispatcher {
+        routes: btreemap! {
+          "/myresource" => WebmachineDispatcher::box_resource(MyResource)
+      }
+    });
+
+    // ....
+
+    Ok(())
+}
+```
+
 ## Example implementations
 
 For an example of a project using this crate, have a look at the [Pact Mock Server](https://github.com/pact-foundation/pact-core-mock-server/tree/main/pact_mock_server_cli) from the Pact reference implementation.
 */
 
 #![warn(missing_docs)]
+#![doc = include_str!("../README.md")]
 
 use std::collections::{BTreeMap, HashMap};
 use std::fmt::{Debug, Display, Formatter};

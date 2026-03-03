@@ -42,45 +42,53 @@ Each WebmachineResource defines all the callbacks (via Closures) and values requ
 
 Note: This example uses the maplit crate to provide the `btreemap` macro and the log crate for the logging macros.
 
- ```rust
+```rust
+use std::convert::Infallible;
+use std::future::ready;
+use std::io::Read;
+use std::net::SocketAddr;
+use std::sync::Arc;
+
+use bytes::Bytes;
+use futures_util::FutureExt;
+use hyper::{body, Request};
+use hyper::server::conn::http1;
+use hyper::service::service_fn;
+use hyper_util::rt::TokioIo;
+use maplit::btreemap;
+use serde_json::{Value, json};
+use tracing::error;
+use tokio::net::TcpListener;
 use webmachine_rust::*;
 use webmachine_rust::context::*;
 use webmachine_rust::headers::*;
-use serde_json::{Value, json};
-use std::io::Read;
-use std::net::SocketAddr;
-use std::convert::Infallible;
-use std::sync::Arc;
-use maplit::btreemap;
-use tracing::error;
-use hyper_util::rt::TokioIo;
-use tokio::net::TcpListener;
-use hyper::server::conn::http1;
-use hyper::service::service_fn;
-use hyper::{body, Request};
 
 async fn start_server() -> anyhow::Result<()> {
   // setup the dispatcher, which maps paths to resources. We wrap it in an Arc so we can
   // use it in the loop below.
   let dispatcher = Arc::new(WebmachineDispatcher {
     routes: btreemap!{
-          "/myresource" => WebmachineResource {
+          "/myresource" => WebmachineDispatcher::box_resource(WebmachineResource {
             // Methods allowed on this resource
-            allowed_methods: vec!["OPTIONS", "GET", "HEAD", "POST"],
+            allowed_methods: owned_vec(&["OPTIONS", "GET", "HEAD", "POST"]),
+            
             // if the resource exists callback
-            resource_exists: callback(&|_, _| true),
-            // callback to render the response for the resource
-            render_response: callback(&|_, _| {
+            resource_exists: callback(|_, _| true),
+            
+            // callback to render the response for the resource, it has to be async
+            render_response: async_callback(|_, _| {
                 let json_response = json!({
                    "data": [1, 2, 3, 4]
                 });
-                Some(json_response.to_string())
+                ready(Ok(Some(Bytes::from(json_response.to_string())))).boxed()
             }),
+            
             // callback to process the post for the resource
-            process_post: callback(&|_, _|  /* Handle the post here */ Ok(true) ),
+            process_post: async_callback(|_, _|  /* Handle the post here */ ready(Ok(true)).boxed() ),
+            
             // default everything else
             .. WebmachineResource::default()
-          }
+          })
       }
   });
 
@@ -103,6 +111,61 @@ async fn start_server() -> anyhow::Result<()> {
   Ok(())
 }
  ```
+
+## Using the Resource trait
+
+You can create your own struct that implements the `Resource` trait instead of using `WebmachineResource`. This avoids
+needing to wrap the callbacks.
+
+for instance, the example above can be changed to:
+
+```rust
+use std::sync::Arc;
+
+use async_trait::async_trait;
+use bytes::Bytes;
+use maplit::btreemap;
+use serde_json::json;
+use webmachine_rust::*;
+use webmachine_rust::context::WebmachineContext;
+
+#[derive(Debug)]
+struct MyResource;
+
+#[async_trait]
+impl Resource for MyResource {
+    fn allowed_methods(&self) -> Vec<&str> {
+        vec!["OPTIONS", "GET", "HEAD", "POST"]
+    }
+
+    async fn resource_exists(&self, _context: &mut WebmachineContext) -> bool {
+        true
+    }
+
+    async fn render_response(&self, _context: &mut WebmachineContext) -> anyhow::Result<Option<Bytes>> {
+        let json_response = json!({
+           "data": [1, 2, 3, 4]
+        });
+        Ok(Some(Bytes::from(json_response.to_string())))
+    }
+
+    async fn process_post(&self, _context: &mut WebmachineContext) -> Result<bool, u16> {
+        Ok(true)
+    }
+}
+
+async fn start_server() -> anyhow::Result<()> {
+    let dispatcher = Arc::new(WebmachineDispatcher {
+        routes: btreemap! {
+          "/myresource" => WebmachineDispatcher::box_resource(MyResource)
+      }
+    });
+    
+    // ....
+    
+    Ok(())
+}
+```
 
 ## Example implementations
 
