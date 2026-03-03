@@ -221,8 +221,8 @@ impl WebmachineResponse {
     /// If the response has a body
     pub fn has_body(&self) -> bool {
         match &self.body {
-            &None => false,
-            &Some(ref body) => !body.is_empty()
+            None => false,
+            Some(body) => !body.is_empty()
         }
     }
 }

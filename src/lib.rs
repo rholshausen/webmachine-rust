@@ -1185,7 +1185,7 @@ async fn execute_decision(
         }
       } else {
         match resource.process_post(context).await {
-          Ok(_) => DecisionResult::wrap(context.redirect, "processing POST succeeded"),
+          Ok(_) => DecisionResult::wrap(context.redirect, "processing POST succeeded, should redirect?"),
           Err(status) => DecisionResult::StatusCode(status)
         }
       }
@@ -1200,7 +1200,7 @@ async fn execute_decision(
           Err(status) => DecisionResult::StatusCode(status)
         }
       } else {
-        DecisionResult::wrap(context.new_resource, "new resource creation succeeded")
+        DecisionResult::wrap(context.new_resource, "is new resource?")
       }
     },
     Decision::O16Put => DecisionResult::wrap(context.request.is_put(), "a PUT request"),
@@ -1225,6 +1225,7 @@ async fn execute_state_machine(
       panic!("State machine has not terminated within {} transitions!", loop_count);
     }
     trace!("state is {:?}", state);
+    trace!("context is {:?}", context);
     state = match TRANSITION_MAP.get(&state) {
       Some(transition) => match transition {
         Transition::To(decision) => {
@@ -1497,7 +1498,7 @@ async fn finalise_response(context: &mut WebmachineContext, resource: &(dyn Reso
       value: "response".to_string(),
       params: hashmap!{
         "desc".to_string() => "Total Response Time".to_string(),
-        "dur".to_string() => format!("{:?}", duration)
+        "dur".to_string() => format!("{}", duration.as_secs_f64())
       },
       quote: true
     }])
